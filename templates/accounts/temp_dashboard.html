@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - AppDoc IGRGTO{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card card-custom p-4 text-center">
+    <h4 class="fw-bold" style="color: var(--primary-blue);">Selamat Datang di AppDoc IGRGTO</h4>
+    <p class="text-muted">Halo, <strong>{{ user.nama_pengguna }}</strong> (Level: {{ user.get_userlevel_display }})</p>
+    <div class="alert alert-info d-inline-block mx-auto mb-0">
+      Autentikasi Step 2 berhasil aktif! Modul dokumen dan approval dashboard akan dimuat di <strong>Step 3</strong>.
+    </div>
+  </div>
+</div>
+{% endblock %}

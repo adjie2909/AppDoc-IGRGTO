@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard Dokumen - AppDoc IGRGTO{% endblock %}
+
+{% block extra_css %}
+<style>
+  #creator-stamp-container {
+    position: relative;
+    display: inline-block;
+    margin: 0 auto;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    user-select: none;
+  }
+
+  #creator-stamp-canvas {
+    display: block;
+    background-color: #ffffff;
+  }
+
+  .draggable-creator-sig {
+    position: absolute;
+    top: 50px;
+    left: 50px;
+    width: 140px;
+    height: 75px;
+    cursor: move;
+    border: 2px dashed var(--primary-blue);
+    background-color: rgba(13, 71, 161, 0.12);
+    touch-action: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+
+  .draggable-creator-sig img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  .draggable-creator-date {
+    position: absolute;
+    top: 135px;
+    left: 50px;
+    width: 130px;
+    height: 35px;
+    cursor: move;
+    border: 2px dashed #0288d1;
+    background-color: rgba(2, 136, 209, 0.12);
+    touch-action: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0d47a1;
+    z-index: 55;
+  }
+
+  /* Pagination Styling */
+  .pagination .page-item .page-link {
+    color: var(--text-dark);
+    border-color: var(--border-light);
+    font-size: 0.85rem;
+  }
+  .pagination .page-item.active .page-link {
+    background-color: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: #ffffff;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+  
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold mb-1" style="color: var(--primary-blue);">Dashboard Dokumen</h3>
+    </div>
+
+    {% if can_upload %}
+      <button type="button" class="btn btn-primary-appdoc shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
+        + Upload Berita Acara
+      </button>
+    {% endif %}
+  </div>
+
+  <!-- Antrean Butuh Approval -->
+  {% if active_queue is not None %}
+    <div class="card card-custom p-4 mb-4 border-start border-4" style="border-left-color: var(--primary-blue) !important;">
+      <h5 class="fw-bold mb-3" style="color: var(--primary-blue);">
+        Antrean Butuh Persetujuan Anda ({{ active_queue.count }})
+      </h5>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>No</th>
+              <th>Judul Dokumen</th>
+              <th>Diupload Oleh</th>
+              <th>Waktu Unggah</th>
+              <th>Status</th>
+              <th class="text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in active_queue %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="fw-semibold">{{ doc.judul_dokumen }}</td>
+                <td>{{ doc.uploaded_by.nama_pengguna }} ({{ doc.uploaded_by.userid }})</td>
+                <td>{{ doc.created_at|date:"d M Y, H:i" }} WITA</td>
+                <td>
+                  <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
+                </td>
+                <td class="text-center">
+                  <a href="{% url 'documents:preview' doc.id %}" class="btn btn-sm btn-primary-appdoc px-3">
+                    Periksa Dokumen
+                  </a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-3 text-muted">
+                  Tidak ada dokumen yang memerlukan approval Anda saat ini.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Daftar Riwayat Dokumen dengan Filter & Pagination -->
+  <div class="card card-custom p-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+      <h5 class="fw-bold mb-0" style="color: #333;">
+        {% if user.userlevel == 'staff' %}Dokumen Saya{% else %}Semua Riwayat Dokumen{% endif %}
+      </h5>
+
+      <!-- Form Filter Status Dokumen -->
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label for="status-filter" class="small fw-semibold text-muted text-nowrap mb-0">Filter Status:</label>
+        <select name="status" id="status-filter" class="form-select form-select-sm" style="min-width: 220px;" onchange="this.form.submit()">
+          <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Semua Status</option>
+          {% for code, label in status_choices %}
+            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if selected_status != 'all' %}
+          <a href="{% url 'documents:dashboard' %}" class="btn btn-sm btn-outline-secondary text-nowrap">Reset</a>
+        {% endif %}
+      </form>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>No</th>
+            <th>Judul Dokumen</th>
+            <th>Pengunggah</th>
+            <th>Waktu Unggah</th>
+            <th>Status</th>
+            <th class="text-center">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in documents %}
+            <tr>
+              <td>{{ forloop.counter0|add:documents.start_index }}</td>
+              <td class="fw-semibold">{{ doc.judul_dokumen }}</td>
+              <td>{{ doc.uploaded_by.nama_pengguna }}</td>
+              <td>{{ doc.created_at|date:"d M Y, H:i" }} WITA</td>
+              <td>
+                {% if doc.status == 'approved' %}
+                  <span class="badge-status badge-approved">Approved</span>
+                {% elif doc.status == 'rejected' %}
+                  <span class="badge-status badge-rejected">Rejected</span>
+                {% elif doc.status == 'draft' %}
+                  <span class="badge-status badge-draft">Draft</span>
+                {% else %}
+                  <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <a href="{% url 'documents:preview' doc.id %}" class="btn btn-sm btn-outline-secondary">Detail</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">Belum ada dokumen yang sesuai dengan kriteria.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Navigasi Pagination -->
+    {% if documents.has_other_pages %}
+      <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top flex-wrap gap-2">
+        <span class="small text-muted">
+          Menampilkan dokumen {{ documents.start_index }} - {{ documents.end_index }} dari total {{ documents.paginator.count }} data
+        </span>
+        <nav aria-label="Navigasi Halaman">
+          <ul class="pagination pagination-sm mb-0">
+            {% if documents.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ documents.previous_page_number }}&status={{ selected_status }}">&laquo; Sebelumnya</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">&laquo; Sebelumnya</span></li>
+            {% endif %}
+
+            {% for p in documents.paginator.page_range %}
+              {% if documents.number == p %}
+                <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+              {% elif p > documents.number|add:'-3' and p < documents.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ p }}&status={{ selected_status }}">{{ p }}</a></li>
+              {% endif %}
+            {% endfor %}
+
+            {% if documents.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ documents.next_page_number }}&status={{ selected_status }}">Berikutnya &raquo;</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Berikutnya &raquo;</span></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if can_upload %}
+<!-- MODAL 1: Form Pilih Dokumen -->
+<div class="modal fade" id="uploadDocModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 card-custom">
+      <div class="modal-header" style="background-color: var(--primary-blue); color: #fff;">
+        <h5 class="modal-title fw-bold">Upload Berita Acara Baru</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="form-init-upload">
+        <div class="modal-body p-4">
+          <div id="init-upload-error" class="alert alert-danger-custom d-none py-2 small mb-3"></div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Judul Dokumen</label>
+            <input type="text" id="init_judul_dokumen" class="form-control" placeholder="Masukkan judul Berita Acara" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Pilih Berkas PDF</label>
+            <input type="file" id="init_file_dokumen" class="form-control" accept="application/pdf" required>
+            <div class="form-text small">Dokumen harus berupa format <strong>.pdf</strong>.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary-appdoc">Lanjut ke Pembubuhan TTD &rarr;</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 2: Verifikasi Kata Sandi Pembuat -->
+<div class="modal fade" id="modalVerifyCreatorPassword" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content card-custom">
+      <div class="modal-header" style="background-color: var(--primary-blue); color: #fff;">
+        <h5 class="modal-title fw-bold">Verifikasi Identitas Pembuat</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="small text-muted mb-3">
+          Masukkan kata sandi akun Anda untuk menandatangani Berita Acara ini sebelum disimpan.
+        </p>
+        <div id="creator-pwd-error" class="alert alert-danger-custom d-none py-2 small mb-3"></div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Kata Sandi Anda</label>
+          <input type="password" id="input-creator-password" class="form-control" placeholder="Masukkan password">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary-appdoc" id="btn-submit-verify-creator">Verifikasi & Posisikan TTD</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 3: Posisikan TTD & Tanggal Pembuat Dokumen -->
+<div class="modal fade" id="modalCreatorSignPlacement" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content card-custom">
+      <div class="modal-header" style="background-color: var(--primary-blue); color: #fff;">
+        <h5 class="modal-title fw-bold">Bubuhkan Tanda Tangan & Tanggal Pembuat</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3 text-center bg-light">
+        <div class="d-flex justify-content-center mb-2">
+          <div class="pdf-toolbar py-1 px-3">
+            <button id="creator-prev-page" class="btn btn-sm btn-outline-light">&laquo;</button>
+            <span class="small mx-2">Halaman: <strong id="creator-page-num">1</strong> / <strong id="creator-page-count">1</strong></span>
+            <button id="creator-next-page" class="btn btn-sm btn-outline-light">&raquo;</button>
+          </div>
+        </div>
+
+        <p class="small text-muted mb-2">
+          Posisikan kotak <strong>Tanda Tangan</strong> dan <strong>Tanggal Hari Ini</strong> ke dalam kolom pengaju Berita Acara. Jika dibatalkan, dokumen <strong>tidak akan disimpan</strong> ke sistem.
+        </p>
+
+        <div id="creator-stamp-container">
+          <canvas id="creator-stamp-canvas"></canvas>
+          
+          <div id="draggable-creator-sig" class="draggable-creator-sig">
+            <img id="img-creator-signature" src="" alt="TTD">
+          </div>
+
+          <div id="draggable-creator-date" class="draggable-creator-date">
+            <span>{{ today_date }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <form method="post" action="{% url 'documents:upload' %}" enctype="multipart/form-data" id="form-final-upload">
+          {% csrf_token %}
+          <input type="hidden" name="judul_dokumen" id="final_judul_dokumen">
+          <input type="file" name="file_dokumen" id="final_file_dokumen" class="d-none">
+
+          <input type="hidden" name="sig_x" id="creator_hidden_sig_x" value="0">
+          <input type="hidden" name="sig_y" id="creator_hidden_sig_y" value="0">
+          <input type="hidden" name="sig_scale" id="creator_hidden_sig_scale" value="1.0">
+          <input type="hidden" name="sig_page" id="creator_hidden_sig_page" value="1">
+
+          <input type="hidden" name="date_text" value="{{ today_date }}">
+          <input type="hidden" name="date_x" id="creator_hidden_date_x" value="0">
+          <input type="hidden" name="date_y" id="creator_hidden_date_y" value="0">
+          <input type="hidden" name="date_scale" id="creator_hidden_date_scale" value="1.0">
+
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal & Buang</button>
+          <button type="submit" class="btn btn-primary-appdoc">Bubuhkan & Ajukan Berita Acara</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if can_upload %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const modalUpload = new bootstrap.Modal(document.getElementById('uploadDocModal'));
+  const modalVerifyCreator = new bootstrap.Modal(document.getElementById('modalVerifyCreatorPassword'));
+  const modalPlacementCreator = new bootstrap.Modal(document.getElementById('modalCreatorSignPlacement'));
+
+  let selectedPdfBuffer = null;
+  let creatorPdfDoc = null;
+  let creatorPageNum = 1;
+
+  document.getElementById('form-init-upload').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const judul = document.getElementById('init_judul_dokumen').value.trim();
+    const fileInput = document.getElementById('init_file_dokumen');
+    const alertBox = document.getElementById('init-upload-error');
+
+    if (!judul || !fileInput.files.length) {
+      alertBox.textContent = 'Harap isi judul dan pilih berkas PDF.';
+      alertBox.classList.remove('d-none');
+      return;
+    }
+
+    const file = fileInput.files[0];
+    if (file.type !== 'application/pdf') {
+      alertBox.textContent = 'Berkas wajib berekstensi .pdf!';
+      alertBox.classList.remove('d-none');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      selectedPdfBuffer = new Uint8Array(event.target.result);
+      
+      document.getElementById('final_judul_dokumen').value = judul;
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      document.getElementById('final_file_dokumen').files = dataTransfer.files;
+
+      modalUpload.hide();
+      document.getElementById('input-creator-password').value = '';
+      document.getElementById('creator-pwd-error').classList.add('d-none');
+      modalVerifyCreator.show();
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  document.getElementById('btn-submit-verify-creator').addEventListener('click', async () => {
+    const pwd = document.getElementById('input-creator-password').value;
+    const alertBox = document.getElementById('creator-pwd-error');
+
+    if (!pwd) {
+      alertBox.textContent = 'Harap isi kata sandi Anda.';
+      alertBox.classList.remove('d-none');
+      return;
+    }
+
+    try {
+      const response = await fetch("{% url 'documents:verify_password' %}", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ password: pwd })
+      });
+      const res = await response.json();
+
+      if (res.success) {
+        modalVerifyCreator.hide();
+        document.getElementById('img-creator-signature').src = res.signature_url;
+        modalPlacementCreator.show();
+        loadCreatorPdf();
+      } else {
+        alertBox.textContent = res.message || 'Verifikasi gagal.';
+        alertBox.classList.remove('d-none');
+      }
+    } catch (e) {
+      alertBox.textContent = 'Terjadi galat koneksi ke server.';
+      alertBox.classList.remove('d-none');
+    }
+  });
+
+  function loadCreatorPdf() {
+    pdfjsLib.getDocument({ data: selectedPdfBuffer }).promise.then(doc_ => {
+      creatorPdfDoc = doc_;
+      document.getElementById('creator-page-count').textContent = creatorPdfDoc.numPages;
+      creatorPageNum = 1;
+      renderCreatorPage(creatorPageNum);
+    });
+  }
+
+  let cCurX = 40, cCurY = 40, cCurW = 140, cCurH = 75;
+  let cDateX = 40, cDateY = 125, cDateW = 120, cDateH = 32;
+
+  function renderCreatorPage(num) {
+    creatorPdfDoc.getPage(num).then(function(page) {
+      const stampCanvas = document.getElementById('creator-stamp-canvas');
+      const stampCtx = stampCanvas.getContext('2d');
+      const sigElem = document.getElementById('draggable-creator-sig');
+      const dateElem = document.getElementById('draggable-creator-date');
+
+      const viewport = page.getViewport({ scale: 1.0 });
+      stampCanvas.height = viewport.height;
+      stampCanvas.width = viewport.width;
+
+      page.render({ canvasContext: stampCtx, viewport: viewport }).promise.then(() => {
+        cCurX = 40; cCurY = 40; cCurW = 140; cCurH = 75;
+        sigElem.style.transform = 'none';
+        sigElem.style.left = cCurX + 'px';
+        sigElem.style.top = cCurY + 'px';
+        sigElem.style.width = cCurW + 'px';
+        sigElem.style.height = cCurH + 'px';
+
+        cDateX = 40; cDateY = 125; cDateW = 120; cDateH = 32;
+        dateElem.style.transform = 'none';
+        dateElem.style.left = cDateX + 'px';
+        dateElem.style.top = cDateY + 'px';
+        dateElem.style.width = cDateW + 'px';
+        dateElem.style.height = cDateH + 'px';
+
+        calcCreatorPercentCoordinates();
+      });
+    });
+    document.getElementById('creator-page-num').textContent = num;
+  }
+
+  document.getElementById('creator-prev-page').addEventListener('click', () => {
+    if (creatorPageNum <= 1) return;
+    creatorPageNum--;
+    renderCreatorPage(creatorPageNum);
+  });
+
+  document.getElementById('creator-next-page').addEventListener('click', () => {
+    if (creatorPageNum >= creatorPdfDoc.numPages) return;
+    creatorPageNum++;
+    renderCreatorPage(creatorPageNum);
+  });
+
+  interact('#draggable-creator-sig')
+    .draggable({
+      inertia: false,
+      modifiers: [interact.modifiers.restrictRect({ restriction: '#creator-stamp-container' })],
+      listeners: {
+        move(event) {
+          cCurX += event.dx;
+          cCurY += event.dy;
+          cCurX = Math.max(0, cCurX);
+          cCurY = Math.max(0, cCurY);
+          event.target.style.left = cCurX + 'px';
+          event.target.style.top = cCurY + 'px';
+          calcCreatorPercentCoordinates();
+        }
+      }
+    })
+    .resizable({
+      edges: { left: true, right: true, bottom: true, top: true },
+      modifiers: [interact.modifiers.restrictSize({ min: { width: 50, height: 30 }, max: { width: 400, height: 250 } })],
+      listeners: {
+        move(event) {
+          cCurX += event.deltaRect.left;
+          cCurY += event.deltaRect.top;
+          cCurW = event.rect.width;
+          cCurH = event.rect.height;
+          cCurX = Math.max(0, cCurX);
+          cCurY = Math.max(0, cCurY);
+          event.target.style.left = cCurX + 'px';
+          event.target.style.top = cCurY + 'px';
+          event.target.style.width = cCurW + 'px';
+          event.target.style.height = cCurH + 'px';
+          calcCreatorPercentCoordinates();
+        }
+      }
+    });
+
+  interact('#draggable-creator-date')
+    .draggable({
+      inertia: false,
+      modifiers: [interact.modifiers.restrictRect({ restriction: '#creator-stamp-container' })],
+      listeners: {
+        move(event) {
+          cDateX += event.dx;
+          cDateY += event.dy;
+          cDateX = Math.max(0, cDateX);
+          cDateY = Math.max(0, cDateY);
+          event.target.style.left = cDateX + 'px';
+          event.target.style.top = cDateY + 'px';
+          calcCreatorPercentCoordinates();
+        }
+      }
+    })
+    .resizable({
+      edges: { left: true, right: true, bottom: true, top: true },
+      modifiers: [interact.modifiers.restrictSize({ min: { width: 60, height: 20 }, max: { width: 300, height: 100 } })],
+      listeners: {
+        move(event) {
+          cDateX += event.deltaRect.left;
+          cDateY += event.deltaRect.top;
+          cDateW = event.rect.width;
+          cDateH = event.rect.height;
+          cDateX = Math.max(0, cDateX);
+          cDateY = Math.max(0, cDateY);
+          event.target.style.left = cDateX + 'px';
+          event.target.style.top = cDateY + 'px';
+          event.target.style.width = cDateW + 'px';
+          event.target.style.height = cDateH + 'px';
+          calcCreatorPercentCoordinates();
+        }
+      }
+    });
+
+  function calcCreatorPercentCoordinates() {
+    const stampCanvas = document.getElementById('creator-stamp-canvas');
+    const cW = stampCanvas.width;
+    const cH = stampCanvas.height;
+
+    const xPct = (cCurX / cW) * 100;
+    const yPct = (cCurY / cH) * 100;
+    const wPct = (cCurW / cW) * 100;
+    const hPct = (cCurH / cH) * 100;
+
+    document.getElementById('creator_hidden_sig_x').value = xPct.toFixed(4);
+    document.getElementById('creator_hidden_sig_y').value = yPct.toFixed(4);
+    document.getElementById('creator_hidden_sig_scale').value = wPct.toFixed(4) + ':' + hPct.toFixed(4);
+    document.getElementById('creator_hidden_sig_page').value = creatorPageNum;
+
+    const dXPct = (cDateX / cW) * 100;
+    const dYPct = (cDateY / cH) * 100;
+    const dWPct = (cDateW / cW) * 100;
+    const dHPct = (cDateH / cH) * 100;
+
+    document.getElementById('creator_hidden_date_x').value = dXPct.toFixed(4);
+    document.getElementById('creator_hidden_date_y').value = dYPct.toFixed(4);
+    document.getElementById('creator_hidden_date_scale').value = dWPct.toFixed(4) + ':' + dHPct.toFixed(4);
+  }
+</script>
+{% endif %}
+{% endblock %}

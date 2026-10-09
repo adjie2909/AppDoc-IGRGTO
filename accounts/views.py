@@ -1,0 +1,57 @@
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, logout
+from django.contrib import messages
+from .forms import UserRegisterForm, LoginForm
+
+
+def register_view(request):
+    """Menangani pendaftaran akun pengguna baru."""
+    if request.user.is_authenticated:
+        return redirect('accounts:dashboard_redirect')
+
+    if request.method == 'POST':
+        form = UserRegisterForm(request.POST, request.FILES)
+        if form.is_valid():
+            user = form.save()
+            messages.success(request, f'Akun {user.userid} berhasil dibuat! Silakan masuk.')
+            return redirect('accounts:login')
+        else:
+            messages.error(request, 'Pendaftaran gagal. Periksa kembali isian formulir Anda.')
+    else:
+        form = UserRegisterForm()
+
+    return render(request, 'accounts/register.html', {'form': form})
+
+
+def login_view(request):
+    """Menangani autentikasi masuk pengguna."""
+    if request.user.is_authenticated:
+        return redirect('accounts:dashboard_redirect')
+
+    if request.method == 'POST':
+        form = LoginForm(request, data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            messages.success(request, f'Selamat datang kembali, {user.nama_pengguna}!')
+            next_url = request.GET.get('next')
+            if next_url:
+                return redirect(next_url)
+            return redirect('accounts:dashboard_redirect')
+        else:
+            messages.error(request, 'UserID atau Password salah.')
+    else:
+        form = LoginForm()
+
+    return render(request, 'accounts/login.html', {'form': form})
+
+
+def logout_view(request):
+    """Menangani sesi keluar pengguna."""
+    logout(request)
+    messages.info(request, 'Anda telah keluar dari sistem.')
+    return redirect('accounts:login')
+
+
+def dashboard_redirect_view(request):
+    return redirect('documents:dashboard')

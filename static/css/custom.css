@@ -1,0 +1,198 @@
+/* ========================================================
+   AppDoc IGRGTO - Custom Stylesheet
+   Tema: Biru (#0D47A1), Merah (#D32F2F), Putih (#FFFFFF & #F5F7FB)
+   ======================================================== */
+
+:root {
+  --primary-blue: #0D47A1;
+  --primary-blue-hover: #082d64;
+  --primary-blue-subtle: #e3f2fd;
+  --accent-red: #D32F2F;
+  --accent-red-hover: #b71c1c;
+  --accent-red-subtle: #ffebee;
+  --bg-body: #F5F7FB;
+  --bg-card: #FFFFFF;
+  --text-dark: #1E293B;
+  --text-muted: #64748B;
+  --border-light: #E2E8F0;
+}
+
+body {
+  background-color: var(--bg-body);
+  color: var(--text-dark);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+}
+
+/* ========================================================
+   NAVBAR
+   ======================================================== */
+.navbar-appdoc {
+  background-color: var(--primary-blue) !important;
+  box-shadow: 0 4px 12px rgba(13, 71, 161, 0.18);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.navbar-appdoc .navbar-brand {
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  font-size: 1.25rem;
+}
+
+/* ========================================================
+   CARD & CONTAINER
+   ======================================================== */
+.card-custom {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* ========================================================
+   BUTTONS
+   ======================================================== */
+.btn-primary-appdoc {
+  background-color: var(--primary-blue);
+  border-color: var(--primary-blue);
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-primary-appdoc:hover,
+.btn-primary-appdoc:focus {
+  background-color: var(--primary-blue-hover);
+  border-color: var(--primary-blue-hover);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(13, 71, 161, 0.3);
+}
+
+.btn-danger-appdoc {
+  background-color: var(--accent-red);
+  border-color: var(--accent-red);
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-danger-appdoc:hover,
+.btn-danger-appdoc:focus {
+  background-color: var(--accent-red-hover);
+  border-color: var(--accent-red-hover);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3);
+}
+
+/* ========================================================
+   BADGE STATUS WORKFLOW
+   ======================================================== */
+.badge-status {
+  padding: 6px 12px;
+  border-radius: 50rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  display: inline-block;
+}
+
+.badge-draft {
+  background-color: #ECEFF1;
+  color: #455A64;
+}
+
+.badge-waiting {
+  background-color: #FFF8E1;
+  color: #B78103;
+  border: 1px solid #FFE082;
+}
+
+.badge-approved {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+  border: 1px solid #A5D6A7;
+}
+
+.badge-rejected {
+  background-color: var(--accent-red-subtle);
+  color: var(--accent-red);
+  border: 1px solid #FFCDD2;
+}
+
+/* ========================================================
+   MODAL & ALERTS
+   ======================================================== */
+.modal-content.card-custom {
+  border-radius: 12px;
+  overflow: hidden;
+  border: none;
+}
+
+.alert-danger-custom {
+  background-color: var(--accent-red-subtle);
+  color: var(--accent-red);
+  border: 1px solid #FFCDD2;
+  border-radius: 8px;
+}
+
+/* Tabel Elegan */
+.table th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  background-color: #F8FAFC;
+  border-bottom: 2px solid var(--border-light);
+}
+
+.table td {
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Garis aksen toast */
+.toast-accent-error {
+  background-color: var(--accent-red);
+}
+
+.toast-accent-success {
+  background-color: var(--primary-blue);
+}
+
+.toast-accent-info {
+  background-color: #17a2b8;
+}
+
+.toast-slide-box {
+  display: block !important;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light) !important;
+  border-radius: 10px;
+  box-shadow: none !important; /* Hapus shadow total */
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 12px;
+  
+  /* Posisi awal: berada di luar layar sebelah kanan */
+  transform: translateX(115%);
+  opacity: 0;
+  will-change: transform, opacity;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+}
+
+/* Saat aktif meluncur masuk ke layar */
+.toast-slide-box.toast-active {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* Saat waktu selesai, meluncur keluar kembali ke kanan */
+.toast-slide-box.toast-leaving {
+  transform: translateX(115%);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.32, 0, 0.67, 0), opacity 0.35s ease;
+}

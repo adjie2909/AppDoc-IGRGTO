@@ -1,0 +1,787 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview: {{ doc.judul_dokumen }} - AppDoc IGRGTO{% endblock %}
+
+{% block extra_css %}
+<style>
+  #pdf-viewer-container {
+    background-color: #525659;
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 550px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: auto;
+  }
+
+  #pdf-canvas {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    background-color: #ffffff;
+    display: block;
+  }
+
+  .pdf-toolbar {
+    background-color: #323639;
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn-back-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background-color: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .btn-back-nav:hover {
+    background-color: #f8fafc;
+    color: var(--primary-blue);
+    border-color: var(--primary-blue);
+    transform: translateX(-2px);
+  }
+
+  #stamp-container {
+    position: relative;
+    display: inline-block;
+    margin: 0 auto;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    user-select: none;
+  }
+
+  #stamp-canvas {
+    display: block;
+    background-color: #ffffff;
+  }
+
+  /* Kotak TTD */
+  .draggable-signature {
+    position: absolute;
+    top: 50px;
+    left: 50px;
+    width: 140px;
+    height: 75px;
+    cursor: move;
+    border: 2px dashed var(--primary-blue);
+    background-color: rgba(13, 71, 161, 0.12);
+    touch-action: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+
+  .draggable-signature img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  /* Kotak Tanggal */
+  .draggable-date {
+    position: absolute;
+    top: 135px;
+    left: 50px;
+    width: 130px;
+    height: 35px;
+    cursor: move;
+    border: 2px dashed #0288d1;
+    background-color: rgba(2, 136, 209, 0.12);
+    touch-action: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0d47a1;
+    z-index: 55;
+    font-family: inherit;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+  
+  <div class="d-flex flex-column gap-2 mb-4">
+    <div>
+      <a href="{% url 'documents:dashboard' %}" class="btn-back-nav">
+        &larr; Kembali ke Dashboard
+      </a>
+    </div>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <h4 class="fw-bold mb-1" style="color: var(--primary-blue);">{{ doc.judul_dokumen }}</h4>
+        <span class="text-muted small">Diupload oleh: <strong>{{ doc.uploaded_by.nama_pengguna }}</strong> ({{ doc.created_at|date:"d M Y, H:i" }} WITA)</span>
+      </div>
+      <div>
+        {% if doc.status == 'approved' %}
+          <span class="badge-status badge-approved">Approved</span>
+        {% elif doc.status == 'rejected' %}
+          <span class="badge-status badge-rejected">Rejected</span>
+        {% else %}
+          <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Area PDF -->
+    <div class="col-lg-9 mb-4">
+      <div class="card card-custom p-3">
+        <div class="d-flex justify-content-center">
+          <div class="pdf-toolbar">
+            <button id="prev-page" class="btn btn-sm btn-outline-light">&laquo; Sebelumnya</button>
+            <span class="small">Halaman: <strong id="page-num">1</strong> / <strong id="page-count">--</strong></span>
+            <button id="next-page" class="btn btn-sm btn-outline-light">Berikutnya &raquo;</button>
+          </div>
+        </div>
+
+        <div id="pdf-viewer-container">
+          <div id="pdf-loading" class="text-white my-auto">Memuat dokumen...</div>
+          
+          <div id="canvas-wrapper" style="position: relative; display: inline-block;">
+            <canvas id="pdf-canvas" style="display: none;"></canvas>
+            <div id="signatures-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+          </div>
+        </div>
+
+        {% if can_action %}
+          <div class="d-flex justify-content-end gap-3 mt-4 pt-3 border-top">
+            <button type="button" class="btn btn-danger-appdoc px-4 py-2" id="btn-trigger-reject">✕ REJECT</button>
+            <button type="button" class="btn btn-primary-appdoc px-4 py-2" id="btn-trigger-approve">✓ APPROVE DOKUMEN</button>
+          </div>
+        {% else %}
+          <div class="alert alert-secondary text-center mt-3 mb-0">
+            Anda dalam mode tinjau dokumen.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Riwayat Log -->
+    <div class="col-lg-3">
+      <div class="card card-custom p-3">
+        <h6 class="fw-bold" style="color: var(--primary-blue);">Riwayat Tindakan</h6>
+        <hr class="my-2">
+        <div class="small">
+          {% for log in logs %}
+            <div class="mb-3 pb-2 border-bottom">
+              <div class="fw-bold">{{ log.approver.nama_pengguna }}</div>
+              <div class="text-muted small">{{ log.get_action_display }} &bull; {{ log.timestamp|date:"d M H:i" }}</div>
+              {% if log.date_text %}
+                <div class="text-primary small fw-semibold">Tanggal: {{ log.date_text }}</div>
+              {% endif %}
+              {% if log.comment %}
+                <div class="fst-italic text-secondary mt-1 bg-light p-2 rounded">"{{ log.comment }}"</div>
+              {% endif %}
+            </div>
+          {% empty %}
+            <div class="text-muted">Belum ada tindakan tercatat.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL 1: Konfirmasi Password -->
+<div class="modal fade" id="modalVerifyPassword" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content card-custom">
+      <div class="modal-header" style="background-color: var(--primary-blue); color: #fff;">
+        <h5 class="modal-title fw-bold">Konfirmasi Otorisasi</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="small text-muted mb-3">
+          Masukkan kata sandi akun Anda untuk membubuhkan tanda tangan digital.
+        </p>
+        <div id="pwd-error-alert" class="alert alert-danger-custom d-none py-2 small mb-3"></div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Kata Sandi Anda</label>
+          <input type="password" id="input-verify-password" class="form-control" placeholder="Masukkan password">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary-appdoc" id="btn-submit-verify">Verifikasi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 2: Drag & Resize TTD & Tanggal pada Dokumen -->
+<div class="modal fade" id="modalSignPlacement" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content card-custom">
+      <div class="modal-header" style="background-color: var(--primary-blue); color: #fff;">
+        <h5 class="modal-title fw-bold">Posisikan Tanda Tangan & Tanggal</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3 text-center bg-light">
+        <p class="small text-muted mb-2">
+          Posisikan kotak <strong>Tanda Tangan (Biru Tua)</strong> dan <strong>Tanggal (Biru Muda)</strong> ke dalam kolom yang sesuai pada dokumen.
+        </p>
+
+        <div id="stamp-container">
+          <canvas id="stamp-canvas"></canvas>
+          <div id="stamp-existing-signatures-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20;"></div>
+          
+          <!-- Kotak Tanda Tangan -->
+          <div id="draggable-sig" class="draggable-signature">
+            <img id="img-user-signature" src="" alt="TTD">
+          </div>
+
+          <!-- Kotak Tanggal Hari Ini -->
+          <div id="draggable-date" class="draggable-date">
+            <span id="stamp-date-text">{{ today_date }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <form method="post" action="{% url 'documents:approve' doc.id %}" id="form-approve-doc">
+          {% csrf_token %}
+          <!-- Koordinat TTD -->
+          <input type="hidden" name="sig_x" id="hidden_sig_x" value="0">
+          <input type="hidden" name="sig_y" id="hidden_sig_y" value="0">
+          <input type="hidden" name="sig_scale" id="hidden_sig_scale" value="1.0">
+          <input type="hidden" name="sig_page" id="hidden_sig_page" value="1">
+
+          <!-- Koordinat & Teks Tanggal -->
+          <input type="hidden" name="date_text" id="hidden_date_text" value="{{ today_date }}">
+          <input type="hidden" name="date_x" id="hidden_date_x" value="0">
+          <input type="hidden" name="date_y" id="hidden_date_y" value="0">
+          <input type="hidden" name="date_scale" id="hidden_date_scale" value="1.0">
+
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kembali</button>
+          <button type="submit" class="btn btn-primary-appdoc">Bubuhkan & Simpan Dokumen</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REJECT -->
+<div class="modal fade" id="modalRejectDocument" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content card-custom">
+      <div class="modal-header" style="background-color: var(--accent-red); color: #fff;">
+        <h5 class="modal-title fw-bold">Tolak Dokumen</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'documents:reject' doc.id %}" id="form-reject-doc">
+        {% csrf_token %}
+        <div class="modal-body p-4">
+          <p class="small text-muted mb-3">
+            Berikan alasan penolakan yang jelas (minimal 15 karakter).
+          </p>
+          <div id="reject-error-alert" class="alert alert-danger-custom d-none py-2 small mb-3"></div>
+          <div class="mb-3">
+            <textarea name="reject_reason" id="reject-reason-input" rows="4" class="form-control" placeholder="Contoh: Nomor berita acara tidak sesuai dengan fisik dokumen..." required></textarea>
+            <div class="d-flex justify-content-between mt-1">
+              <span class="small text-muted" id="char-counter">0 / 15 karakter</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-danger-appdoc">Konfirmasi Tolak</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{{ approved_signatures_data|json_script:"signatures-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const pdfUrl = "{{ doc.file_dokumen.url }}";
+  let pdfDoc = null;
+  let pageNum = 1;
+  let pageRendering = false;
+  let pageNumPending = null;
+  const scale = 1.3;
+  const canvas = document.getElementById('pdf-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const modalVerify = new bootstrap.Modal(document.getElementById('modalVerifyPassword'));
+  const modalSign = new bootstrap.Modal(document.getElementById('modalSignPlacement'));
+
+  const signaturesScriptEl = document.getElementById('signatures-data');
+  const approvedSignatures = signaturesScriptEl ? JSON.parse(signaturesScriptEl.textContent || '[]') : [];
+
+  // ==========================================
+  // RENDER SEMUA TTD & TANGGAL DI PREVIEW UTAMA
+  // ==========================================
+  function renderSignaturesForPage(currentPage) {
+    const layer = document.getElementById('signatures-layer');
+    if (!layer || !canvas) return;
+    layer.innerHTML = '';
+
+    layer.style.width = canvas.width + 'px';
+    layer.style.height = canvas.height + 'px';
+
+    approvedSignatures.forEach(sig => {
+      if (parseInt(sig.page) === parseInt(currentPage)) {
+        // 1. Kotak Tanda Tangan
+        const sigBox = document.createElement('div');
+        sigBox.style.position = 'absolute';
+
+        const xPct = parseFloat(sig.x) || 0;
+        const yPct = parseFloat(sig.y) || 0;
+        sigBox.style.left = (xPct / 100 * canvas.width) + 'px';
+        sigBox.style.top = (yPct / 100 * canvas.height) + 'px';
+
+        let wPct = 20, hPct = 10;
+        if (sig.scale && String(sig.scale).includes(':')) {
+          const parts = String(sig.scale).split(':');
+          wPct = parseFloat(parts[0]) || 20;
+          hPct = parseFloat(parts[1]) || 10;
+        }
+
+        sigBox.style.width = (wPct / 100 * canvas.width) + 'px';
+        sigBox.style.height = (hPct / 100 * canvas.height) + 'px';
+        sigBox.style.zIndex = '10';
+        sigBox.style.pointerEvents = 'none';
+
+        const img = document.createElement('img');
+        img.src = sig.url;
+        img.alt = sig.approver;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+
+        sigBox.appendChild(img);
+        layer.appendChild(sigBox);
+
+        // 2. Kotak Tanggal
+        if (sig.date_text && sig.date_x !== null) {
+          const dateBox = document.createElement('div');
+          dateBox.style.position = 'absolute';
+
+          const dXPct = parseFloat(sig.date_x) || 0;
+          const dYPct = parseFloat(sig.date_y) || 0;
+          dateBox.style.left = (dXPct / 100 * canvas.width) + 'px';
+          dateBox.style.top = (dYPct / 100 * canvas.height) + 'px';
+
+          let dWPct = 15, dHPct = 5;
+          if (sig.date_scale && String(sig.date_scale).includes(':')) {
+            const dParts = String(sig.date_scale).split(':');
+            dWPct = parseFloat(dParts[0]) || 15;
+            dHPct = parseFloat(dParts[1]) || 5;
+          }
+
+          dateBox.style.width = (dWPct / 100 * canvas.width) + 'px';
+          dateBox.style.height = (dHPct / 100 * canvas.height) + 'px';
+          dateBox.style.zIndex = '12';
+          dateBox.style.pointerEvents = 'none';
+          dateBox.style.display = 'flex';
+          dateBox.style.alignItems = 'center';
+          dateBox.style.justifyContent = 'center';
+          dateBox.style.fontSize = Math.max(10, Math.round(11 * (canvas.width / 800))) + 'px';
+          dateBox.style.fontWeight = '700';
+          dateBox.style.color = '#111827';
+          dateBox.textContent = sig.date_text;
+
+          layer.appendChild(dateBox);
+        }
+      }
+    });
+  }
+
+  // ==========================================
+  // RENDER DOKUMEN PDF
+  // ==========================================
+  function renderPage(num) {
+    pageRendering = true;
+    pdfDoc.getPage(num).then(function(page) {
+      const viewport = page.getViewport({ scale: scale });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = { canvasContext: ctx, viewport: viewport };
+      page.render(renderContext).promise.then(function() {
+        pageRendering = false;
+        document.getElementById('pdf-loading').style.display = 'none';
+        canvas.style.display = 'block';
+
+        renderSignaturesForPage(num);
+
+        if (pageNumPending !== null) {
+          renderPage(pageNumPending);
+          pageNumPending = null;
+        }
+      });
+    });
+    document.getElementById('page-num').textContent = num;
+  }
+
+  function queueRenderPage(num) {
+    if (pageRendering) {
+      pageNumPending = num;
+    } else {
+      renderPage(num);
+    }
+  }
+
+  document.getElementById('prev-page').addEventListener('click', () => {
+    if (pageNum <= 1) return;
+    pageNum--;
+    queueRenderPage(pageNum);
+  });
+
+  document.getElementById('next-page').addEventListener('click', () => {
+    if (pageNum >= pdfDoc.numPages) return;
+    pageNum++;
+    queueRenderPage(pageNum);
+  });
+
+  pdfjsLib.getDocument(pdfUrl).promise.then(doc_ => {
+    pdfDoc = doc_;
+    document.getElementById('page-count').textContent = pdfDoc.numPages;
+    renderPage(pageNum);
+  }).catch(() => {
+    document.getElementById('pdf-loading').innerHTML = '<span class="text-danger">Gagal memuat dokumen.</span>';
+  });
+
+  // ==========================================
+  // MODAL 1: VERIFIKASI PASSWORD
+  // ==========================================
+  const btnApprove = document.getElementById('btn-trigger-approve');
+  if (btnApprove) {
+    btnApprove.addEventListener('click', () => {
+      document.getElementById('input-verify-password').value = '';
+      document.getElementById('pwd-error-alert').classList.add('d-none');
+      modalVerify.show();
+    });
+  }
+
+  document.getElementById('btn-submit-verify').addEventListener('click', async () => {
+    const pwd = document.getElementById('input-verify-password').value;
+    const alertBox = document.getElementById('pwd-error-alert');
+
+    if (!pwd) {
+      alertBox.textContent = 'Harap isi password Anda.';
+      alertBox.classList.remove('d-none');
+      return;
+    }
+
+    try {
+      const response = await fetch("{% url 'documents:verify_password' %}", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ password: pwd })
+      });
+      const res = await response.json();
+
+      if (res.success) {
+        modalVerify.hide();
+        document.getElementById('img-user-signature').src = res.signature_url;
+        modalSign.show();
+        initStampCanvas();
+      } else {
+        alertBox.textContent = res.message || 'Verifikasi gagal.';
+        alertBox.classList.remove('d-none');
+      }
+    } catch (e) {
+      alertBox.textContent = 'Terjadi galat koneksi ke server.';
+      alertBox.classList.remove('d-none');
+    }
+  });
+
+  // Render TTD & Tanggal lama di Modal
+  function renderExistingSignaturesInModal(currentPage) {
+    const modalLayer = document.getElementById('stamp-existing-signatures-layer');
+    const stampCanvas = document.getElementById('stamp-canvas');
+    if (!modalLayer || !stampCanvas) return;
+    
+    modalLayer.innerHTML = '';
+    modalLayer.style.width = stampCanvas.width + 'px';
+    modalLayer.style.height = stampCanvas.height + 'px';
+
+    approvedSignatures.forEach(sig => {
+      if (parseInt(sig.page) === parseInt(currentPage)) {
+        // TTD Lama
+        const sigBox = document.createElement('div');
+        sigBox.style.position = 'absolute';
+        const xPct = parseFloat(sig.x) || 0;
+        const yPct = parseFloat(sig.y) || 0;
+        sigBox.style.left = (xPct / 100 * stampCanvas.width) + 'px';
+        sigBox.style.top = (yPct / 100 * stampCanvas.height) + 'px';
+
+        let wPct = 20, hPct = 10;
+        if (sig.scale && String(sig.scale).includes(':')) {
+          const parts = String(sig.scale).split(':');
+          wPct = parseFloat(parts[0]) || 20;
+          hPct = parseFloat(parts[1]) || 10;
+        }
+
+        sigBox.style.width = (wPct / 100 * stampCanvas.width) + 'px';
+        sigBox.style.height = (hPct / 100 * stampCanvas.height) + 'px';
+        sigBox.style.pointerEvents = 'none';
+
+        const img = document.createElement('img');
+        img.src = sig.url;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+
+        sigBox.appendChild(img);
+        modalLayer.appendChild(sigBox);
+
+        // Tanggal Lama
+        if (sig.date_text && sig.date_x !== null) {
+          const dateBox = document.createElement('div');
+          dateBox.style.position = 'absolute';
+          dateBox.style.left = (parseFloat(sig.date_x) / 100 * stampCanvas.width) + 'px';
+          dateBox.style.top = (parseFloat(sig.date_y) / 100 * stampCanvas.height) + 'px';
+
+          let dWPct = 15, dHPct = 5;
+          if (sig.date_scale && String(sig.date_scale).includes(':')) {
+            const dParts = String(sig.date_scale).split(':');
+            dWPct = parseFloat(dParts[0]) || 15;
+            dHPct = parseFloat(dParts[1]) || 5;
+          }
+
+          dateBox.style.width = (dWPct / 100 * stampCanvas.width) + 'px';
+          dateBox.style.height = (dHPct / 100 * stampCanvas.height) + 'px';
+          dateBox.style.display = 'flex';
+          dateBox.style.alignItems = 'center';
+          dateBox.style.justifyContent = 'center';
+          dateBox.style.fontSize = '12px';
+          dateBox.style.fontWeight = '700';
+          dateBox.style.color = '#111827';
+          dateBox.textContent = sig.date_text;
+          modalLayer.appendChild(dateBox);
+        }
+      }
+    });
+  }
+
+  // ==========================================
+  // MODAL 2: INTERACT.JS DRAG & RESIZE (TTD & TANGGAL)
+  // ==========================================
+  let curX = 40, curY = 40, curW = 140, curH = 75;
+  let dateX = 40, dateY = 125, dateW = 120, dateH = 32;
+
+  function initStampCanvas() {
+    const stampCanvas = document.getElementById('stamp-canvas');
+    const stampCtx = stampCanvas.getContext('2d');
+    const sigElem = document.getElementById('draggable-sig');
+    const dateElem = document.getElementById('draggable-date');
+
+    pdfDoc.getPage(pageNum).then(function(page) {
+      const viewport = page.getViewport({ scale: 1.0 });
+      stampCanvas.height = viewport.height;
+      stampCanvas.width = viewport.width;
+
+      page.render({ canvasContext: stampCtx, viewport: viewport }).promise.then(() => {
+        renderExistingSignaturesInModal(pageNum);
+
+        // Posisi Default TTD
+        curX = 40; curY = 40; curW = 140; curH = 75;
+        sigElem.style.transform = 'none';
+        sigElem.style.left = curX + 'px';
+        sigElem.style.top = curY + 'px';
+        sigElem.style.width = curW + 'px';
+        sigElem.style.height = curH + 'px';
+
+        // Posisi Default Tanggal
+        dateX = 40; dateY = 125; dateW = 120; dateH = 32;
+        dateElem.style.transform = 'none';
+        dateElem.style.left = dateX + 'px';
+        dateElem.style.top = dateY + 'px';
+        dateElem.style.width = dateW + 'px';
+        dateElem.style.height = dateH + 'px';
+
+        calcPercentCoordinates();
+      });
+    });
+  }
+
+  // Drag & Resize Tanda Tangan
+  interact('#draggable-sig')
+    .draggable({
+      inertia: false,
+      modifiers: [interact.modifiers.restrictRect({ restriction: '#stamp-container' })],
+      listeners: {
+        move(event) {
+          curX += event.dx;
+          curY += event.dy;
+          curX = Math.max(0, curX);
+          curY = Math.max(0, curY);
+          event.target.style.left = curX + 'px';
+          event.target.style.top = curY + 'px';
+          calcPercentCoordinates();
+        }
+      }
+    })
+    .resizable({
+      edges: { left: true, right: true, bottom: true, top: true },
+      modifiers: [interact.modifiers.restrictSize({ min: { width: 50, height: 30 }, max: { width: 400, height: 250 } })],
+      listeners: {
+        move(event) {
+          curX += event.deltaRect.left;
+          curY += event.deltaRect.top;
+          curW = event.rect.width;
+          curH = event.rect.height;
+          curX = Math.max(0, curX);
+          curY = Math.max(0, curY);
+          event.target.style.left = curX + 'px';
+          event.target.style.top = curY + 'px';
+          event.target.style.width = curW + 'px';
+          event.target.style.height = curH + 'px';
+          calcPercentCoordinates();
+        }
+      }
+    });
+
+  // Drag & Resize Tanggal
+  interact('#draggable-date')
+    .draggable({
+      inertia: false,
+      modifiers: [interact.modifiers.restrictRect({ restriction: '#stamp-container' })],
+      listeners: {
+        move(event) {
+          dateX += event.dx;
+          dateY += event.dy;
+          dateX = Math.max(0, dateX);
+          dateY = Math.max(0, dateY);
+          event.target.style.left = dateX + 'px';
+          event.target.style.top = dateY + 'px';
+          calcPercentCoordinates();
+        }
+      }
+    })
+    .resizable({
+      edges: { left: true, right: true, bottom: true, top: true },
+      modifiers: [interact.modifiers.restrictSize({ min: { width: 60, height: 20 }, max: { width: 300, height: 100 } })],
+      listeners: {
+        move(event) {
+          dateX += event.deltaRect.left;
+          dateY += event.deltaRect.top;
+          dateW = event.rect.width;
+          dateH = event.rect.height;
+          dateX = Math.max(0, dateX);
+          dateY = Math.max(0, dateY);
+          event.target.style.left = dateX + 'px';
+          event.target.style.top = dateY + 'px';
+          event.target.style.width = dateW + 'px';
+          event.target.style.height = dateH + 'px';
+          calcPercentCoordinates();
+        }
+      }
+    });
+
+  function calcPercentCoordinates() {
+    const stampCanvas = document.getElementById('stamp-canvas');
+    const cW = stampCanvas.width;
+    const cH = stampCanvas.height;
+
+    // TTD
+    const xPct = (curX / cW) * 100;
+    const yPct = (curY / cH) * 100;
+    const wPct = (curW / cW) * 100;
+    const hPct = (curH / cH) * 100;
+
+    document.getElementById('hidden_sig_x').value = xPct.toFixed(4);
+    document.getElementById('hidden_sig_y').value = yPct.toFixed(4);
+    document.getElementById('hidden_sig_scale').value = wPct.toFixed(4) + ':' + hPct.toFixed(4);
+    document.getElementById('hidden_sig_page').value = pageNum;
+
+    // Tanggal
+    const dXPct = (dateX / cW) * 100;
+    const dYPct = (dateY / cH) * 100;
+    const dWPct = (dateW / cW) * 100;
+    const dHPct = (dateH / cH) * 100;
+
+    document.getElementById('hidden_date_x').value = dXPct.toFixed(4);
+    document.getElementById('hidden_date_y').value = dYPct.toFixed(4);
+    document.getElementById('hidden_date_scale').value = dWPct.toFixed(4) + ':' + dHPct.toFixed(4);
+  }
+
+  // ==========================================
+  // MODAL 3: REJECT
+  // ==========================================
+  const modalReject = new bootstrap.Modal(document.getElementById('modalRejectDocument'));
+  const btnReject = document.getElementById('btn-trigger-reject');
+  const rejectTextarea = document.getElementById('reject-reason-input');
+  const rejectAlert = document.getElementById('reject-error-alert');
+  const charCounter = document.getElementById('char-counter');
+  const formReject = document.getElementById('form-reject-doc');
+
+  if (btnReject) {
+    btnReject.addEventListener('click', () => {
+      rejectTextarea.value = '';
+      charCounter.textContent = '0 / 15 karakter';
+      charCounter.classList.add('text-muted');
+      rejectAlert.classList.add('d-none');
+      modalReject.show();
+    });
+  }
+
+  if (rejectTextarea) {
+    rejectTextarea.addEventListener('input', () => {
+      const len = rejectTextarea.value.trim().length;
+      charCounter.textContent = `${len} / 15 karakter`;
+      if (len >= 15) {
+        charCounter.classList.remove('text-muted', 'text-danger');
+        charCounter.classList.add('text-success');
+      } else {
+        charCounter.classList.remove('text-success', 'text-muted');
+        charCounter.classList.add('text-danger');
+      }
+    });
+  }
+
+  if (formReject) {
+    formReject.addEventListener('submit', (e) => {
+      const val = rejectTextarea.value.trim();
+      const garbageRegex = /^[.\-_\/,\s]+$/;
+
+      if (val.length < 15) {
+        e.preventDefault();
+        rejectAlert.textContent = 'Alasan penolakan minimal 15 karakter.';
+        rejectAlert.classList.remove('d-none');
+        return;
+      }
+
+      if (garbageRegex.test(val)) {
+        e.preventDefault();
+        rejectAlert.textContent = 'Alasan penolakan tidak boleh hanya berupa simbol atau tanda baca.';
+        rejectAlert.classList.remove('d-none');
+        return;
+      }
+    });
+  }
+</script>
+{% endblock %}
