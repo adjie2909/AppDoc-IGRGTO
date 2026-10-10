@@ -45,20 +45,20 @@
     position: absolute;
     top: 135px;
     left: 50px;
-    width: 130px;
-    height: 35px;
+    width: 80px !important;
+    height: 18px !important;
+    line-height: 18px;
     cursor: move;
-    border: 2px dashed #0288d1;
-    background-color: rgba(2, 136, 209, 0.12);
+    border: 1.5px dashed #0288d1;
+    background-color: rgba(2, 136, 209, 0.15);
     touch-action: none;
     box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
+    text-align: center;
+    font-size: 11px;
     font-weight: 700;
     color: #0d47a1;
     z-index: 55;
+    user-select: none;
   }
 
   /* Pagination Styling */
@@ -188,9 +188,15 @@
                 {% else %}
                   <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
                 {% endif %}
-              </td>
               <td class="text-center">
-                <a href="{% url 'documents:preview' doc.id %}" class="btn btn-sm btn-outline-secondary">Detail</a>
+                <div class="d-flex justify-content-center gap-1">
+                  <a href="{% url 'documents:preview' doc.id %}" class="btn btn-sm btn-outline-secondary">Detail</a>
+                  {% if doc.status == 'approved' %}
+                    <a href="{% url 'documents:download' doc.id %}" class="btn btn-sm btn-success" title="Download PDF Resmi">
+                      &#128190; Download
+                    </a>
+                  {% endif %}
+                </div>
               </td>
             </tr>
           {% empty %}
@@ -252,15 +258,56 @@
       <form id="form-init-upload">
         <div class="modal-body p-4">
           <div id="init-upload-error" class="alert alert-danger-custom d-none py-2 small mb-3"></div>
+          
           <div class="mb-3">
             <label class="form-label fw-semibold">Judul Dokumen</label>
             <input type="text" id="init_judul_dokumen" class="form-control" placeholder="Masukkan judul Berita Acara" required>
           </div>
+
           <div class="mb-3">
             <label class="form-label fw-semibold">Pilih Berkas PDF</label>
             <input type="file" id="init_file_dokumen" class="form-control" accept="application/pdf" required>
             <div class="form-text small">Dokumen harus berupa format <strong>.pdf</strong>.</div>
           </div>
+
+          <!-- Opsi Pilihan Level Approval Dinamis -->
+          <div class="mb-3 border rounded p-3 bg-light">
+            <label class="form-label fw-bold d-block mb-1 text-dark">
+              Pihak yang dibutuhkan Tanda Tangan
+            </label>
+            <div class="form-text small mb-2 text-muted">
+              Centang level yang wajib tanda tangan. Level yang tidak dicentang akan otomatis dilewati.
+            </div>
+
+            <div class="d-flex flex-column gap-2 mt-2" id="approval-levels-checklist">
+              {% if user.userlevel == 'staff' %}
+                <div class="form-check">
+                  <input class="form-check-input chk-target-level" type="checkbox" value="supervisor" id="chk_spv">
+                  <label class="form-check-label fw-semibold" for="chk_spv">Supervisor (SPV)</label>
+                </div>
+              {% endif %}
+
+              {% if user.userlevel == 'staff' or user.userlevel == 'supervisor' %}
+                <div class="form-check">
+                  <input class="form-check-input chk-target-level" type="checkbox" value="junior manajer" id="chk_jm">
+                  <label class="form-check-label fw-semibold" for="chk_jm">Store Junior Manajer (SJM)</label>
+                </div>
+              {% endif %}
+
+              {% if user.userlevel == 'staff' or user.userlevel == 'supervisor' or user.userlevel == 'junior manajer' %}
+                <div class="form-check">
+                  <input class="form-check-input chk-target-level" type="checkbox" value="store administration manager" id="chk_sam">
+                  <label class="form-check-label fw-semibold" for="chk_sam">Store Administration Manager (SAM)</label>
+                </div>
+              {% endif %}
+
+              <div class="form-check">
+                <input class="form-check-input chk-target-level" type="checkbox" value="store manager" id="chk_sm" checked>
+                <label class="form-check-label fw-semibold" for="chk_sm">Store Manager (SM)</label>
+              </div>
+            </div>
+          </div>
+
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -330,26 +377,29 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer">
-        <form method="post" action="{% url 'documents:upload' %}" enctype="multipart/form-data" id="form-final-upload">
-          {% csrf_token %}
-          <input type="hidden" name="judul_dokumen" id="final_judul_dokumen">
-          <input type="file" name="file_dokumen" id="final_file_dokumen" class="d-none">
+        <div class="modal-footer">
+          <form method="post" action="{% url 'documents:upload' %}" enctype="multipart/form-data" id="form-final-upload">
+            {% csrf_token %}
+            <input type="hidden" name="judul_dokumen" id="final_judul_dokumen">
+            <input type="file" name="file_dokumen" id="final_file_dokumen" class="d-none">
+            
+            <!-- Pastikan atribut name adalah sig_x, sig_y, date_x, date_y -->
+            <input type="hidden" name="sig_x" id="creator_hidden_sig_x" value="0">
+            <input type="hidden" name="sig_y" id="creator_hidden_sig_y" value="0">
+            <input type="hidden" name="sig_scale" id="creator_hidden_sig_scale" value="15.0:8.0">
+            <input type="hidden" name="sig_page" id="creator_hidden_sig_page" value="1">
+            
+            <input type="hidden" name="date_text" value="{{ today_date }}">
+            <input type="hidden" name="date_x" id="creator_hidden_date_x" value="0">
+            <input type="hidden" name="date_y" id="creator_hidden_date_y" value="0">
+            <input type="hidden" name="date_scale" id="creator_hidden_date_scale" value="14.0:4.0">
+            
+            <div id="final_approval_targets_container"></div>
 
-          <input type="hidden" name="sig_x" id="creator_hidden_sig_x" value="0">
-          <input type="hidden" name="sig_y" id="creator_hidden_sig_y" value="0">
-          <input type="hidden" name="sig_scale" id="creator_hidden_sig_scale" value="1.0">
-          <input type="hidden" name="sig_page" id="creator_hidden_sig_page" value="1">
-
-          <input type="hidden" name="date_text" value="{{ today_date }}">
-          <input type="hidden" name="date_x" id="creator_hidden_date_x" value="0">
-          <input type="hidden" name="date_y" id="creator_hidden_date_y" value="0">
-          <input type="hidden" name="date_scale" id="creator_hidden_date_scale" value="1.0">
-
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal & Buang</button>
-          <button type="submit" class="btn btn-primary-appdoc">Bubuhkan & Ajukan Berita Acara</button>
-        </form>
-      </div>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal & Buang</button>
+            <button type="submit" class="btn btn-primary-appdoc">Bubuhkan & Ajukan Berita Acara</button>
+          </form>
+        </div>
     </div>
   </div>
 </div>
@@ -373,14 +423,23 @@
   let creatorPdfDoc = null;
   let creatorPageNum = 1;
 
-  document.getElementById('form-init-upload').addEventListener('submit', function (e) {
+document.getElementById('form-init-upload').addEventListener('submit', function (e) {
     e.preventDefault();
     const judul = document.getElementById('init_judul_dokumen').value.trim();
     const fileInput = document.getElementById('init_file_dokumen');
     const alertBox = document.getElementById('init-upload-error');
+    
+    // Ambil checkbox level approval yang dicentang
+    const checkedLevels = Array.from(document.querySelectorAll('.chk-target-level:checked')).map(cb => cb.value);
 
     if (!judul || !fileInput.files.length) {
       alertBox.textContent = 'Harap isi judul dan pilih berkas PDF.';
+      alertBox.classList.remove('d-none');
+      return;
+    }
+
+    if (checkedLevels.length === 0) {
+      alertBox.textContent = 'Pilih minimal satu pejabat yang wajib menandatangani dokumen!';
       alertBox.classList.remove('d-none');
       return;
     }
@@ -400,6 +459,17 @@
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
       document.getElementById('final_file_dokumen').files = dataTransfer.files;
+
+      // Pindahkan pilihan level ke form final
+      const targetContainer = document.getElementById('final_approval_targets_container');
+      targetContainer.innerHTML = '';
+      checkedLevels.forEach(lvl => {
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'approval_targets';
+        hiddenInput.value = lvl;
+        targetContainer.appendChild(hiddenInput);
+      });
 
       modalUpload.hide();
       document.getElementById('input-creator-password').value = '';
@@ -455,7 +525,7 @@
   }
 
   let cCurX = 40, cCurY = 40, cCurW = 140, cCurH = 75;
-  let cDateX = 40, cDateY = 125, cDateW = 120, cDateH = 32;
+  let cDateX = 40, cDateY = 125, cDateW = 80, cDateH = 18;
 
   function renderCreatorPage(num) {
     creatorPdfDoc.getPage(num).then(function(page) {
@@ -463,7 +533,6 @@
       const stampCtx = stampCanvas.getContext('2d');
       const sigElem = document.getElementById('draggable-creator-sig');
       const dateElem = document.getElementById('draggable-creator-date');
-
       const viewport = page.getViewport({ scale: 1.0 });
       stampCanvas.height = viewport.height;
       stampCanvas.width = viewport.width;
@@ -476,7 +545,7 @@
         sigElem.style.width = cCurW + 'px';
         sigElem.style.height = cCurH + 'px';
 
-        cDateX = 40; cDateY = 125; cDateW = 120; cDateH = 32;
+        cDateX = 40; cDateY = 125; cDateW = 80; cDateH = 18;
         dateElem.style.transform = 'none';
         dateElem.style.left = cDateX + 'px';
         dateElem.style.top = cDateY + 'px';
@@ -552,25 +621,6 @@
           calcCreatorPercentCoordinates();
         }
       }
-    })
-    .resizable({
-      edges: { left: true, right: true, bottom: true, top: true },
-      modifiers: [interact.modifiers.restrictSize({ min: { width: 60, height: 20 }, max: { width: 300, height: 100 } })],
-      listeners: {
-        move(event) {
-          cDateX += event.deltaRect.left;
-          cDateY += event.deltaRect.top;
-          cDateW = event.rect.width;
-          cDateH = event.rect.height;
-          cDateX = Math.max(0, cDateX);
-          cDateY = Math.max(0, cDateY);
-          event.target.style.left = cDateX + 'px';
-          event.target.style.top = cDateY + 'px';
-          event.target.style.width = cDateW + 'px';
-          event.target.style.height = cDateH + 'px';
-          calcCreatorPercentCoordinates();
-        }
-      }
     });
 
   function calcCreatorPercentCoordinates() {
@@ -590,8 +640,8 @@
 
     const dXPct = (cDateX / cW) * 100;
     const dYPct = (cDateY / cH) * 100;
-    const dWPct = (cDateW / cW) * 100;
-    const dHPct = (cDateH / cH) * 100;
+    const dWPct = (80 / cW) * 100;
+    const dHPct = (18 / cH) * 100;
 
     document.getElementById('creator_hidden_date_x').value = dXPct.toFixed(4);
     document.getElementById('creator_hidden_date_y').value = dYPct.toFixed(4);

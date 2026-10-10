@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from django.http import JsonResponse
+from django.http import JsonResponse,FileResponse, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -9,7 +9,44 @@ from django.db import transaction
 from .models import Document, ApprovalLog
 from .forms import DocumentUploadForm
 from django.core.paginator import Paginator
+from django.http import FileResponse, Http404
+from .utils import generate_signed_pdf
+from django.urls import reverse
 
+HIERARCHY_ORDER = [
+    'supervisor',
+    'junior manajer',
+    'store administration manager',
+    'store manager'
+]
+
+LEVEL_TO_STATUS = {
+    'supervisor': 'waiting_supervisor',
+    'junior manajer': 'waiting_junior_manager',
+    'store administration manager': 'waiting_sam',
+    'store manager': 'waiting_store_manager',
+}
+
+STATUS_TO_LEVEL = {v: k for k, v in LEVEL_TO_STATUS.items()}
+
+def get_next_status(doc, current_userlevel):
+    """
+    Mencari level berikutnya hanya dari required_levels yang ada di dokumen.
+    Jika tidak ada lagi level berikutnya, kembalikan 'approved'.
+    """
+    levels = doc.required_levels or []
+    # Ambil index level sekarang dalam hierarki
+    try:
+        current_idx = HIERARCHY_ORDER.index(current_userlevel)
+    except ValueError:
+        current_idx = -1
+
+    # Cari level berikutnya yang berada di atas level sekarang dan ada di required_levels
+    for level in HIERARCHY_ORDER[current_idx + 1:]:
+        if level in levels:
+            return LEVEL_TO_STATUS[level]
+
+    return 'approved'
 
 @login_required(login_url='accounts:login')
 def dashboard_view(request):
@@ -68,31 +105,39 @@ def upload_document_view(request):
     if request.method == 'POST':
         form = DocumentUploadForm(request.POST, request.FILES)
         if form.is_valid():
+            # Perhatikan: ambil dengan fallback agar cocok dengan form pembuat maupun approver
             try:
-                sig_x = float(request.POST.get('sig_x', 0))
-                sig_y = float(request.POST.get('sig_y', 0))
-                sig_page = int(request.POST.get('sig_page', 1))
-                date_x = float(request.POST.get('date_x', 0))
-                date_y = float(request.POST.get('date_y', 0))
+                sig_x = float(request.POST.get('sig_x') or request.POST.get('creator_hidden_sig_x') or 0)
+                sig_y = float(request.POST.get('sig_y') or request.POST.get('creator_hidden_sig_y') or 0)
+                sig_page = int(request.POST.get('sig_page') or request.POST.get('creator_hidden_sig_page') or 1)
+                
+                date_x = float(request.POST.get('date_x') or request.POST.get('creator_hidden_date_x') or 0)
+                date_y = float(request.POST.get('date_y') or request.POST.get('creator_hidden_date_y') or 0)
             except (ValueError, TypeError):
                 sig_x, sig_y, sig_page = 0, 0, 1
                 date_x, date_y = 0, 0
 
-            sig_scale = request.POST.get('sig_scale', '15.0:8.0')
+            sig_scale = request.POST.get('sig_scale') or request.POST.get('creator_hidden_sig_scale') or '15.0:8.0'
             date_text = request.POST.get('date_text', datetime.now().strftime('%d/%m/%Y'))
-            date_scale = request.POST.get('date_scale', '14.0:4.0')
+            date_scale = request.POST.get('date_scale') or request.POST.get('creator_hidden_date_scale') or '14.0:4.0'
 
-            role_initial_status = {
-                'staff': 'waiting_supervisor',
-                'supervisor': 'waiting_junior_manager',
-                'junior manajer': 'waiting_sam',
-                'store administration manager': 'waiting_store_manager',
-            }
+            selected_levels = form.cleaned_data['approval_targets']
+            sorted_levels = [lvl for lvl in HIERARCHY_ORDER if lvl in selected_levels]
+
+            user_idx = HIERARCHY_ORDER.index(request.user.userlevel) if request.user.userlevel in HIERARCHY_ORDER else -1
+            filtered_levels = [lvl for lvl in sorted_levels if HIERARCHY_ORDER.index(lvl) > user_idx]
+
+            if not filtered_levels:
+                messages.error(request, 'Pilih setidaknya satu pejabat dengan level di atas Anda untuk tanda tangan.')
+                return redirect('documents:dashboard')
+
+            initial_status = LEVEL_TO_STATUS[filtered_levels[0]]
 
             with transaction.atomic():
                 doc = form.save(commit=False)
                 doc.uploaded_by = request.user
-                doc.status = role_initial_status.get(request.user.userlevel, 'waiting_supervisor')
+                doc.required_levels = filtered_levels
+                doc.status = initial_status
                 doc.save()
 
                 ApprovalLog.objects.create(
@@ -114,8 +159,7 @@ def upload_document_view(request):
             messages.success(request, f'Dokumen "{doc.judul_dokumen}" berhasil dibuat dan diteruskan ke tahap berikutnya.')
             return redirect('documents:dashboard')
         else:
-            messages.error(request, 'Gagal mengunggah dokumen. Pastikan file berformat .pdf.')
-
+            messages.error(request, 'Gagal mengunggah dokumen. Periksa isian formulir Anda.')
     return redirect('documents:dashboard')
 
 
@@ -139,7 +183,7 @@ def document_preview_view(request, doc_id):
         if log.action in ['approved', 'submitted'] and log.signature_snapshot and log.sig_x is not None:
             approved_signatures_data.append({
                 'approver': log.approver.nama_pengguna,
-                'url': log.signature_snapshot.url,
+                'url': reverse('documents:log_signature', args=[log.id]),
                 'x': log.sig_x,
                 'y': log.sig_y,
                 'scale': log.sig_scale if log.sig_scale else '15.0:8.0',
@@ -162,23 +206,17 @@ def document_preview_view(request, doc_id):
 
 @login_required(login_url='accounts:login')
 def approve_document_view(request, doc_id):
-    """Menyimpan persetujuan pejabat berjenjang."""
+    """Menyimpan persetujuan pejabat berjenjang secara dinamis (skip yang tidak dipilih)."""
     if request.method != 'POST':
         return redirect('documents:preview', doc_id=doc_id)
 
     doc = get_object_or_404(Document, id=doc_id)
     user = request.user
 
-    next_status_map = {
-        'waiting_supervisor': ('supervisor', 'waiting_junior_manager'),
-        'waiting_junior_manager': ('junior manajer', 'waiting_sam'),
-        'waiting_sam': ('store administration manager', 'waiting_store_manager'),
-        'waiting_store_manager': ('store manager', 'approved'),
-    }
-
-    rule = next_status_map.get(doc.status)
-    if not rule or user.userlevel != rule[0]:
-        messages.error(request, 'Anda tidak memiliki hak otorisasi untuk menyetujui dokumen ini.')
+    # Cek apakah level user yang sedang login sesuai dengan status dokumen saat ini
+    expected_level = STATUS_TO_LEVEL.get(doc.status)
+    if not expected_level or user.userlevel != expected_level:
+        messages.error(request, 'Anda tidak memiliki hak otorisasi untuk menyetujui dokumen ini saat ini.')
         return redirect('documents:preview', doc_id=doc.id)
 
     try:
@@ -195,7 +233,8 @@ def approve_document_view(request, doc_id):
     date_text = request.POST.get('date_text', datetime.now().strftime('%d/%m/%Y'))
     date_scale = request.POST.get('date_scale', '14.0:4.0')
 
-    new_status = rule[1]
+    # Cari status berikutnya (otomatis melompati level yang tidak ada di doc.required_levels)
+    new_status = get_next_status(doc, user.userlevel)
     doc.status = new_status
     doc.save()
 
@@ -216,40 +255,72 @@ def approve_document_view(request, doc_id):
     )
 
     if new_status == 'approved':
+        doc.save()
+        try:
+            generate_signed_pdf(doc)
+        except Exception as e:
+            messages.warning(request, f'Dokumen approved, tetapi terjadi kendala generate PDF: {e}')
         messages.success(request, f'Dokumen "{doc.judul_dokumen}" telah selesai disetujui sepenuhnya!')
     else:
+        doc.save()
         messages.success(request, f'Dokumen "{doc.judul_dokumen}" berhasil disetujui dan diteruskan ke tahap berikutnya.')
 
     return redirect('documents:dashboard')
 
+@login_required(login_url='accounts:login')
+def download_document_view(request, doc_id):
+    """Mengunduh PDF final hanya jika status dokumen sudah 'approved'."""
+    doc = get_object_or_404(Document, id=doc_id)
+
+    if doc.status != 'approved':
+        messages.error(request, 'Dokumen belum selesai diapprove dan belum dapat diunduh.')
+        return redirect('documents:preview', doc_id=doc.id)
+
+    # Ambil signed_file, jika belum tergenerate coba buatkan
+    if not doc.signed_file:
+        try:
+            generate_signed_pdf(doc)
+        except Exception:
+            raise Http404("Berkas tanda tangan belum siap.")
+
+    return FileResponse(doc.signed_file.open('rb'), as_attachment=True, filename=f"SIGNED_{doc.judul_dokumen}.pdf")
 
 @login_required(login_url='accounts:login')
 def verify_password_view(request):
-    """Memvalidasi kata sandi approver sebelum membubuhkan tanda tangan."""
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            password = data.get('password', '')
-            if request.user.check_password(password):
-                if not request.user.ttd_digital:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'Anda belum mengunggah tanda tangan digital di profil Anda.'
-                    }, status=400)
+  """Memvalidasi kata sandi approver sebelum membubuhkan tanda tangan."""
+  if request.method == 'POST':
+    try:
+      data = json.loads(request.body)
+      password = data.get('password', '')
+      if request.user.check_password(password):
+        if not request.user.ttd_digital:
+          return JsonResponse(
+              {
+                  'success': False,
+                  'message': (
+                      'Anda belum mengunggah tanda tangan digital di profil'
+                      ' Anda.'
+                  ),
+              },
+              status=400,
+          )
 
-                return JsonResponse({
-                    'success': True,
-                    'signature_url': request.user.ttd_digital.url
-                })
-            else:
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Kata sandi yang Anda masukkan salah.'
-                }, status=400)
-        except Exception:
-            return JsonResponse({'success': False, 'message': 'Terjadi kesalahan sistem.'}, status=500)
 
-    return JsonResponse({'success': False, 'message': 'Metode tidak diizinkan.'}, status=405)
+        sig_url = reverse('documents:my_signature')
+
+        return JsonResponse({'success': True, 'signature_url': sig_url})
+      else:
+        return JsonResponse(
+            {'success': False, 'message': 'Kata sandi yang Anda masukkan salah.'},
+            status=400,
+        )
+    except Exception:
+      return JsonResponse(
+          {'success': False, 'message': 'Terjadi kesalahan sistem.'}, status=500
+      )
+  return JsonResponse(
+      {'success': False, 'message': 'Metode tidak diizinkan.'}, status=405
+  )
 
 
 @login_required(login_url='accounts:login')
@@ -297,3 +368,38 @@ def reject_document_view(request, doc_id):
 
     messages.warning(request, f'Dokumen "{doc.judul_dokumen}" telah ditolak.')
     return redirect('documents:dashboard')
+
+
+@login_required(login_url='accounts:login')
+def document_pdf_file_view(request, doc_id):
+    """Mengalirkan file PDF langsung ke preview browser tanpa bergantung MEDIA_URL."""
+    doc = get_object_or_404(Document, id=doc_id)
+    if not doc.file_dokumen:
+        raise Http404("Dokumen tidak memiliki berkas PDF.")
+    
+    try:
+        # Buka file langsung dari disk server
+        return FileResponse(doc.file_dokumen.open('rb'), content_type='application/pdf')
+    except FileNotFoundError:
+        raise Http404("Berkas fisik PDF tidak ditemukan di server.")
+
+@login_required(login_url='accounts:login')
+def my_signature_view(request):
+  """Mengalirkan gambar tanda tangan milik user yang sedang login."""
+  user = request.user
+  if not user.ttd_digital:
+    raise Http404('Pengguna belum memiliki tanda tangan digital.')
+
+  # Cek keberadaan file fisik di storage
+  try:
+    return FileResponse(user.ttd_digital.open('rb'))
+  except FileNotFoundError:
+    raise Http404('Berkas tanda tangan tidak ditemukan di server.')
+
+@login_required(login_url='accounts:login')
+def signature_log_view(request, log_id):
+  """Menyajikan gambar tanda tangan dari ApprovalLog."""
+  log = get_object_or_404(ApprovalLog, id=log_id)
+  if not log.signature_snapshot:
+    raise Http404('Tidak ada berkas tanda tangan.')
+  return FileResponse(log.signature_snapshot.open('rb'))

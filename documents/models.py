@@ -16,7 +16,7 @@ class Document(models.Model):
     STATUS_CHOICES = (
         ('draft', 'Draft'),
         ('waiting_supervisor', 'Menunggu Supervisor'),
-        ('waiting_junior_manager', 'Menunggu Junior Manajer'),
+        ('waiting_junior_manager', 'Menunggu Store Junior Manajer'),
         ('waiting_sam', 'Menunggu Store Administration Manager'),
         ('waiting_store_manager', 'Menunggu Store Manager'),
         ('approved', 'Selesai / Approved'),
@@ -28,6 +28,12 @@ class Document(models.Model):
         upload_to='documents/%Y/%m/',
         validators=[validate_file_extension],
         verbose_name='File Dokumen (PDF/DOCX)'
+    )
+    signed_file = models.FileField(
+        upload_to='documents/signed/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name='File Dokumen Lengkap Bertanda Tangan'
     )
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -41,6 +47,12 @@ class Document(models.Model):
         default='draft',
         verbose_name='Status Dokumen'
     )
+    required_levels = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Level Persetujuan yang Diperlukan'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Tanggal Upload')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Terakhir Diperbarui')
 
@@ -92,7 +104,6 @@ class ApprovalLog(models.Model):
     date_y = models.FloatField(blank=True, null=True)
     date_scale = models.CharField(max_length=50, blank=True, null=True)
 
-    timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = 'Log Persetujuan'

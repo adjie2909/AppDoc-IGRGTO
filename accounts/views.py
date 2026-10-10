@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.contrib import messages
 from .forms import UserRegisterForm, LoginForm
+from django.contrib.auth.decorators import login_required
+from django.http import FileResponse, Http404
 
 
 def register_view(request):
@@ -55,3 +57,16 @@ def logout_view(request):
 
 def dashboard_redirect_view(request):
     return redirect('documents:dashboard')
+
+@login_required(login_url='accounts:login')
+def my_signature_view(request):
+  """Mengalirkan gambar tanda tangan milik user yang sedang login."""
+  user = request.user
+  if not user.ttd_digital:
+    raise Http404('Pengguna belum memiliki tanda tangan digital.')
+
+  # Cek keberadaan file fisik di storage
+  try:
+    return FileResponse(user.ttd_digital.open('rb'))
+  except FileNotFoundError:
+    raise Http404('Berkas tanda tangan tidak ditemukan di server.')

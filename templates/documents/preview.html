@@ -97,21 +97,22 @@
     position: absolute;
     top: 135px;
     left: 50px;
-    width: 130px;
-    height: 35px;
+    width: 90px !important;   
+    height: 22px !important;   
     cursor: move;
-    border: 2px dashed #0288d1;
+    border: 1.5px dashed #0288d1;
     background-color: rgba(2, 136, 209, 0.12);
     touch-action: none;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 11px;          
+    font-weight: 600;
     color: #0d47a1;
     z-index: 55;
     font-family: inherit;
+    user-select: none;
   }
 </style>
 {% endblock %}
@@ -132,15 +133,22 @@
       </div>
       <div>
         {% if doc.status == 'approved' %}
-          <span class="badge-status badge-approved">Approved</span>
-        {% elif doc.status == 'rejected' %}
-          <span class="badge-status badge-rejected">Rejected</span>
-        {% else %}
-          <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
-        {% endif %}
+            <span class="badge-status badge-approved">Approved</span>
+            <a href="{% url 'documents:download' doc.id %}" class="btn btn-sm btn-success fw-bold px-3 shadow-sm">
+              Download PDF Lengkap TTD
+            </a>
+          {% elif doc.status == 'rejected' %}
+            <span class="badge-status badge-rejected">Rejected</span>
+          {% else %}
+            <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
+            <button class="btn btn-sm btn-secondary disabled" title="Belum dapat diunduh sebelum approval selesai">
+              Download Belum Tersedia
+            </button>
+          {% endif %}
       </div>
     </div>
   </div>
+  
 
   <div class="row">
     <!-- Area PDF -->
@@ -176,8 +184,40 @@
       </div>
     </div>
 
-    <!-- Riwayat Log -->
+<!-- Riwayat Log & Alur Approval -->
     <div class="col-lg-3">
+      <!-- Kartu Alur Persetujuan Dinamis -->
+      <div class="card card-custom p-3 mb-3">
+        <h6 class="fw-bold" style="color: var(--primary-blue);">Alur Persetujuan</h6>
+        <hr class="my-2">
+        <div class="d-flex flex-column gap-2 small">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success rounded-pill">&#10003;</span>
+            <span class="fw-semibold text-dark">Pembuat ({{ doc.uploaded_by.get_userlevel_display }})</span>
+          </div>
+
+          {% if doc.required_levels %}
+            {% for level in doc.required_levels %}
+              <div class="d-flex align-items-center gap-2">
+                {% if doc.status == 'approved' %}
+                  <span class="badge bg-success rounded-pill">&#10003;</span>
+                  <span class="text-success fw-semibold">{{ level|title }}</span>
+                {% elif doc.status == 'waiting_'|add:level or doc.status == 'waiting_junior_manager' and level == 'junior manajer' or doc.status == 'waiting_sam' and level == 'store administration manager' or doc.status == 'waiting_store_manager' and level == 'store manager' %}
+                  <span class="badge bg-primary rounded-pill">&bull;</span>
+                  <span class="text-primary fw-bold">{{ level|title }} (Menunggu)</span>
+                {% else %}
+                  <span class="badge bg-secondary rounded-pill">&minus;</span>
+                  <span class="text-muted">{{ level|title }}</span>
+                {% endif %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted fst-italic">Alur standar (semua level).</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Kartu Riwayat Tindakan -->
       <div class="card card-custom p-3">
         <h6 class="fw-bold" style="color: var(--primary-blue);">Riwayat Tindakan</h6>
         <hr class="my-2">
@@ -199,7 +239,6 @@
         </div>
       </div>
     </div>
-  </div>
 
 </div>
 
@@ -321,7 +360,7 @@
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-  const pdfUrl = "{{ doc.file_dokumen.url }}";
+  const pdfUrl = "{% url 'documents:pdf_file' doc.id %}";
   let pdfDoc = null;
   let pageNum = 1;
   let pageRendering = false;
@@ -681,25 +720,6 @@
           calcPercentCoordinates();
         }
       }
-    })
-    .resizable({
-      edges: { left: true, right: true, bottom: true, top: true },
-      modifiers: [interact.modifiers.restrictSize({ min: { width: 60, height: 20 }, max: { width: 300, height: 100 } })],
-      listeners: {
-        move(event) {
-          dateX += event.deltaRect.left;
-          dateY += event.deltaRect.top;
-          dateW = event.rect.width;
-          dateH = event.rect.height;
-          dateX = Math.max(0, dateX);
-          dateY = Math.max(0, dateY);
-          event.target.style.left = dateX + 'px';
-          event.target.style.top = dateY + 'px';
-          event.target.style.width = dateW + 'px';
-          event.target.style.height = dateH + 'px';
-          calcPercentCoordinates();
-        }
-      }
     });
 
   function calcPercentCoordinates() {
@@ -707,7 +727,6 @@
     const cW = stampCanvas.width;
     const cH = stampCanvas.height;
 
-    // TTD
     const xPct = (curX / cW) * 100;
     const yPct = (curY / cH) * 100;
     const wPct = (curW / cW) * 100;
@@ -718,11 +737,10 @@
     document.getElementById('hidden_sig_scale').value = wPct.toFixed(4) + ':' + hPct.toFixed(4);
     document.getElementById('hidden_sig_page').value = pageNum;
 
-    // Tanggal
     const dXPct = (dateX / cW) * 100;
     const dYPct = (dateY / cH) * 100;
-    const dWPct = (dateW / cW) * 100;
-    const dHPct = (dateH / cH) * 100;
+    const dWPct = (80 / cW) * 100;
+    const dHPct = (18 / cH) * 100;
 
     document.getElementById('hidden_date_x').value = dXPct.toFixed(4);
     document.getElementById('hidden_date_y').value = dYPct.toFixed(4);

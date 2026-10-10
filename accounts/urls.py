@@ -8,4 +8,5 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('dashboard/', views.dashboard_redirect_view, name='dashboard_redirect'),
+    path('my-signature/', views.my_signature_view, name='my_signature'),
 ]
