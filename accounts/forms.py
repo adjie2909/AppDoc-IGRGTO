@@ -41,18 +41,18 @@ class CustomUserChangeForm(UserChangeForm):
 class UserRegisterForm(forms.ModelForm):
     password = forms.CharField(
         label='Password',
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Masukkan password'}),
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
     )
     password_confirm = forms.CharField(
         label='Konfirmasi Password',
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Ulangi password'}),
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
     )
 
     class Meta:
         model = CustomUser
         fields = ('userid', 'nama_pengguna', 'userlevel', 'ttd_digital')
         widgets = {
-            'userid': forms.TextInput(attrs={'class': 'form-control text-uppercase', 'placeholder': 'Contoh: ST1, ADM'}),
+            'userid': forms.TextInput(attrs={'class': 'form-control text-uppercase'}),
             'nama_pengguna': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nama lengkap Anda'}),
             'userlevel': forms.Select(attrs={'class': 'form-select'}),
             'ttd_digital': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'}),
@@ -85,11 +85,11 @@ class UserRegisterForm(forms.ModelForm):
 class LoginForm(AuthenticationForm):
     username = forms.CharField(
         label='UserID',
-        widget=forms.TextInput(attrs={'class': 'form-control text-uppercase', 'placeholder': 'UserID (3 Karakter)'})
+        widget=forms.TextInput(attrs={'class': 'form-control text-uppercase'})
     )
     password = forms.CharField(
         label='Password',
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Password'})
+        widget=forms.PasswordInput(attrs={'class': 'form-control'})
     )
 
     def clean_username(self):
