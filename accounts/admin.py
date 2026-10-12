@@ -10,15 +10,15 @@ class CustomUserAdmin(UserAdmin):
     form = CustomUserChangeForm
     model = CustomUser
 
-    list_display = ('userid', 'nama_pengguna', 'userlevel', 'is_active', 'is_staff')
+    list_display = ('userid', 'nama_pengguna', 'email', 'userlevel', 'is_active', 'is_staff')
     list_filter = ('userlevel', 'is_active', 'is_staff')
-    search_fields = ('userid', 'nama_pengguna')
+    search_fields = ('userid', 'nama_pengguna', 'email')
     ordering = ('userid',)
 
     # Tampilan saat edit user yang sudah ada
     fieldsets = (
         (None, {'fields': ('userid',)}),
-        ('Informasi Pribadi', {'fields': ('nama_pengguna', 'userlevel', 'ttd_digital')}),
+        ('Informasi Pribadi', {'fields': ('nama_pengguna', 'email', 'userlevel', 'ttd_digital')}),
         ('Hak Akses', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
 
@@ -26,6 +26,6 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('userid', 'nama_pengguna', 'userlevel', 'ttd_digital', 'password1', 'password2'),
+            'fields': ('userid', 'nama_pengguna', 'email', 'userlevel', 'ttd_digital', 'password1', 'password2'),
         }),
     )

@@ -4,6 +4,7 @@ from django.contrib import messages
 from .forms import UserRegisterForm, LoginForm
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404
+from .forms import UserRegisterForm, LoginForm, UploadSignatureForm
 
 
 def register_view(request):
@@ -70,3 +71,22 @@ def my_signature_view(request):
     return FileResponse(user.ttd_digital.open('rb'))
   except FileNotFoundError:
     raise Http404('Berkas tanda tangan tidak ditemukan di server.')
+
+@login_required(login_url='accounts:login')
+def upload_signature_view(request):
+    """View wajib untuk user yang belum memiliki tanda tangan digital."""
+    if request.user.ttd_digital:
+        return redirect('accounts:dashboard_redirect')
+
+    if request.method == 'POST':
+        form = UploadSignatureForm(request.POST, request.FILES, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Tanda tangan digital berhasil diunggah! Anda sekarang dapat mengakses dashboard.')
+            return redirect('accounts:dashboard_redirect')
+        else:
+            messages.error(request, 'Gagal mengunggah berkas tanda tangan. Periksa kembali format dan ukurannya.')
+    else:
+        form = UploadSignatureForm(instance=request.user)
+
+    return render(request, 'accounts/upload_signature.html', {'form': form})

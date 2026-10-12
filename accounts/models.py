@@ -13,21 +13,26 @@ def validate_ttd_size(image):
 
 
 class CustomUserManager(BaseUserManager):
-    """Manager kustom untuk CustomUser."""
-
-    def create_user(self, userid, nama_pengguna, password=None, **extra_fields):
+    def create_user(self, userid, nama_pengguna, email=None, password=None, **extra_fields):
         if not userid:
             raise ValueError('UserID harus diisi.')
         if not nama_pengguna:
             raise ValueError('Nama pengguna harus diisi.')
-
+        
         userid = userid.strip().upper()
-        user = self.model(userid=userid, nama_pengguna=nama_pengguna, **extra_fields)
+        email = self.normalize_email(email) if email else None
+        
+        user = self.model(
+            userid=userid, 
+            nama_pengguna=nama_pengguna, 
+            email=email, 
+            **extra_fields
+        )
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, userid, nama_pengguna, password=None, **extra_fields):
+    def create_superuser(self, userid, nama_pengguna, email=None, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('userlevel', 'store manager')
@@ -37,14 +42,13 @@ class CustomUserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser harus memiliki is_superuser=True.')
 
-        return self.create_user(userid, nama_pengguna, password, **extra_fields)
-
+        return self.create_user(userid, nama_pengguna, email=email, password=password, **extra_fields)
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     USERLEVEL_CHOICES = (
         ('staff', 'Staff'),
         ('supervisor', 'Supervisor'),
-        ('junior manajer', 'Junior Manajer'),
+        ('junior manajer', 'Store Junior Manajer'),
         ('store administration manager', 'Store Administration Manager'),
         ('store manager', 'Store Manager'),
     )
@@ -63,6 +67,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         help_text='3 karakter alfanumerik (Contoh: A01, ADJ, ST1). Disimpan dalam huruf besar.'
     )
     nama_pengguna = models.CharField(max_length=150, verbose_name='Nama Pengguna')
+
+    email = models.EmailField(
+        max_length=254, 
+        unique=True, 
+        null=True, 
+        blank=True, 
+        verbose_name='Alamat Email'
+    )
+
     userlevel = models.CharField(
         max_length=35,
         choices=USERLEVEL_CHOICES,
@@ -85,7 +98,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'userid'
-    REQUIRED_FIELDS = ['nama_pengguna']
+    REQUIRED_FIELDS = ['nama_pengguna','email']
 
     class Meta:
         verbose_name = 'Pengguna'

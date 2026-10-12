@@ -7,7 +7,7 @@ from .models import CustomUser
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
-        fields = ('userid', 'nama_pengguna', 'userlevel', 'ttd_digital')
+        fields = ('userid', 'nama_pengguna', 'email', 'userlevel', 'ttd_digital')
 
     def clean_userid(self):
         userid = self.cleaned_data.get('userid', '')
@@ -17,6 +17,7 @@ class CustomUserCreationForm(UserCreationForm):
         user = super().save(commit=False)
         user.userid = self.cleaned_data['userid'].strip().upper()
         user.nama_pengguna = self.cleaned_data['nama_pengguna']
+        user.email = self.cleaned_data.get('email')
         user.userlevel = self.cleaned_data['userlevel']
         if 'ttd_digital' in self.cleaned_data:
             user.ttd_digital = self.cleaned_data['ttd_digital']
@@ -30,7 +31,7 @@ class CustomUserChangeForm(UserChangeForm):
 
     class Meta:
         model = CustomUser
-        fields = ('userid', 'nama_pengguna', 'userlevel', 'ttd_digital', 'is_active', 'is_staff', 'is_superuser')
+        fields = ('userid', 'nama_pengguna', 'email', 'userlevel', 'ttd_digital', 'is_active', 'is_staff', 'is_superuser')
 
     def clean_userid(self):
         userid = self.cleaned_data.get('userid', '')
@@ -39,6 +40,17 @@ class CustomUserChangeForm(UserChangeForm):
 
 # Form Registrasi Publik
 class UserRegisterForm(forms.ModelForm):
+    email = forms.EmailField(
+        required=True,
+        label='Alamat Email',
+        widget=forms.EmailInput(attrs={'class': 'form-control'})
+    )
+    ttd_digital = forms.ImageField(
+        required=True,
+        label='Tanda Tangan Digital',
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'}),
+        help_text='Wajib mengunggah file tanda tangan format PNG/JPG (Maks 2MB).'
+    )
     password = forms.CharField(
         label='Password',
         widget=forms.PasswordInput(attrs={'class': 'form-control'}),
@@ -50,12 +62,11 @@ class UserRegisterForm(forms.ModelForm):
 
     class Meta:
         model = CustomUser
-        fields = ('userid', 'nama_pengguna', 'userlevel', 'ttd_digital')
+        fields = ('userid', 'nama_pengguna', 'email', 'userlevel', 'ttd_digital')
         widgets = {
             'userid': forms.TextInput(attrs={'class': 'form-control text-uppercase'}),
             'nama_pengguna': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nama lengkap Anda'}),
             'userlevel': forms.Select(attrs={'class': 'form-select'}),
-            'ttd_digital': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'}),
         }
 
     def clean_userid(self):
@@ -63,6 +74,12 @@ class UserRegisterForm(forms.ModelForm):
         if CustomUser.objects.filter(userid=userid).exists():
             raise forms.ValidationError('UserID ini sudah terdaftar.')
         return userid
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip().lower()
+        if CustomUser.objects.filter(email=email).exists():
+            raise forms.ValidationError('Email ini sudah digunakan oleh akun lain.')
+        return email
 
     def clean(self):
         cleaned_data = super().clean()
@@ -80,6 +97,16 @@ class UserRegisterForm(forms.ModelForm):
             user.save()
         return user
 
+class UploadSignatureForm(forms.ModelForm):
+    ttd_digital = forms.ImageField(
+        required=True,
+        label='Tanda Tangan Digital Baru',
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'})
+    )
+
+    class Meta:
+        model = CustomUser
+        fields = ('ttd_digital',)
 
 # Form Login Kustom berbasis UserID
 class LoginForm(AuthenticationForm):
