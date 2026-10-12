@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+    .email-container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.06); }
+    .header { background-color: #0d47a1; color: #ffffff; padding: 24px; text-align: center; }
+    .body { padding: 30px; font-size: 15px; line-height: 1.6; }
+    .doc-info { background: #f8fafc; border-left: 4px solid #0d47a1; padding: 15px; margin: 20px 0; border-radius: 4px; }
+    .btn-action { display: inline-block; background-color: #0d47a1; color: #ffffff !important; text-decoration: none; padding: 12px 26px; border-radius: 6px; font-weight: bold; margin-top: 15px; }
+    .footer { text-align: center; font-size: 12px; color: #888; padding: 20px; background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="header">
+      <h2 style="margin: 0;">AppDoc IGRGTO</h2>
+      <p style="margin: 5px 0 0; font-size: 14px;">Permintaan Tanda Tangan & Persetujuan Dokumen</p>
+    </div>
+    <div class="body">
+      <p>Halo Bapak/Ibu,</p>
+      <p>Terdapat dokumen baru yang memerlukan tinjauan dan pembubuhan tanda tangan digital dari Anda:</p>
+      
+      <div class="doc-info">
+        <p style="margin: 0 0 8px;"><strong>Judul Dokumen:</strong> {{ doc.judul_dokumen }}</p>
+        <p style="margin: 0 0 8px;"><strong>Diupload Oleh:</strong> {{ doc.uploaded_by.nama_pengguna }} ({{ doc.uploaded_by.get_userlevel_display }})</p>
+        <p style="margin: 0;"><strong>Status Saat Ini:</strong> {{ doc.get_status_display }}</p>
+      </div>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ doc_url }}" class="btn-action">Periksa & Tandatangani Dokumen</a>
+      </div>
+
+      <p style="font-size: 13px; color: #666;">Jika tombol di atas tidak dapat diklik, buka tautan berikut:<br><a href="{{ doc_url }}">{{ doc_url }}</a></p>
+    </div>
+    <div class="footer">
+      Email ini dikirim otomatis oleh sistem AppDoc-IGRGTO. Harap tidak membalas email ini.
+    </div>
+  </div>
+</body>
+</html>

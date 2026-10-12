@@ -1,7 +1,116 @@
 # documents/utils.py
 import fitz
 from django.core.files.base import ContentFile
+from django.core.mail import send_mail
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from io import BytesIO
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+
+STATUS_TO_LEVEL = {
+    'waiting_supervisor': 'supervisor',
+    'waiting_junior_manager': 'junior manajer',
+    'waiting_sam': 'store administration manager',
+    'waiting_store_manager': 'store manager',
+}
+
+def notify_next_approver(doc, request=None):
+    """
+    Mengirim notifikasi email ke user yang bertugas menandatangani dokumen pada status saat ini.
+    """
+    target_level = STATUS_TO_LEVEL.get(doc.status)
+    if not target_level:
+        return
+
+    User = get_user_model()
+    # Cari semua user aktif yang memiliki level tersebut dan email valid
+    approvers = User.objects.filter(userlevel=target_level, is_active=True).exclude(email__isnull=True).exclude(email__exact='')
+    
+    recipient_emails = [u.email for u in approvers if u.email]
+    if not recipient_emails:
+        return
+
+    doc_url = request.build_absolute_uri(f"/documents/document/{doc.id}/preview/") if request else f"/documents/document/{doc.id}/preview/"
+
+    subject = f"[AppDoc-IGRGTO] Permintaan Tanda Tangan: {doc.judul_dokumen}"
+    message = (
+        f"Halo Bapak/Ibu,\n\n"
+        f"Dokumen berikut membutuhkan tanda tangan dan persetujuan dari Anda:\n\n"
+        f"Judul Dokumen : {doc.judul_dokumen}\n"
+        f"Dibuat Oleh   : {doc.uploaded_by.nama_pengguna} ({doc.uploaded_by.get_userlevel_display()})\n"
+        f"Status        : {doc.get_status_display()}\n\n"
+        f"Silakan tinjau dan bubuhkan tanda tangan Anda melalui tautan berikut:\n"
+        f"{doc_url}\n\n"
+        f"Terima kasih.\n"
+        f"Sistem Otomatis AppDoc-IGRGTO"
+    )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            recipient_list=recipient_emails,
+            fail_silently=True,  # fail_silently=True agar jika internet kantor/SMTP gagal, transaksi web tidak crash
+        )
+    except Exception as e:
+        print(f"[Email Error] Gagal kirim notifikasi approver: {e}")
+
+
+def notify_document_creator(doc, action, reason=None, request=None):
+    """
+    Mengirim email ke pembuat dokumen ketika dokumennya selesai disetujui atau ditolak.
+    """
+    creator = doc.uploaded_by
+    if not creator.email:
+        return
+
+    doc_url = request.build_absolute_uri(f"/documents/document/{doc.id}/preview/") if request else f"/documents/document/{doc.id}/preview/"
+
+    if action == 'approved':
+        subject = f"[AppDoc-IGRGTO] Dokumen Telah Disetujui Sepenuhnya: {doc.judul_dokumen}"
+        message = (
+            f"Halo {creator.nama_pengguna},\n\n"
+            f"Kabar baik! Dokumen Anda telah disetujui sepenuhnya oleh seluruh pejabat terkait:\n\n"
+            f"Judul Dokumen : {doc.judul_dokumen}\n"
+            f"Status        : Selesai / Approved\n\n"
+            f"Anda dapat mengunduh berkas PDF lengkap yang sudah bertanda tangan melalui tautan berikut:\n"
+            f"{doc_url}\n\n"
+            f"Terima kasih.\n"
+            f"AppDoc-IGRGTO"
+        )
+    elif action == 'rejected':
+        subject = f"[AppDoc-IGRGTO] Dokumen Ditolak: {doc.judul_dokumen}"
+        message = (
+            f"Halo {creator.nama_pengguna},\n\n"
+            f"Dokumen yang Anda ajukan telah DITOLAK oleh pejabat pemeriksa.\n\n"
+            f"Judul Dokumen   : {doc.judul_dokumen}\n"
+            f"Alasan Penolakan: {reason}\n\n"
+            f"Silakan periksa detailnya pada tautan berikut:\n"
+            f"{doc_url}\n\n"
+            f"Terima kasih.\n"
+            f"AppDoc-IGRGTO"
+        )
+    else:
+        return
+
+    try:
+        context = {
+            'doc': doc,
+            'doc_url': doc_url,
+        }
+        html_content = render_to_string('emails/email_signature_request.html', context)
+        plain_content = strip_tags(html_content)
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            recipient_list=[creator.email],
+            fail_silently=True,
+        )
+    except Exception as e:
+        print(f"[Email Error] Gagal kirim notifikasi pembuat dokumen: {e}")
 
 def generate_signed_pdf(doc):
     doc_pdf = fitz.open(doc.file_dokumen.path)

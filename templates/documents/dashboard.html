@@ -83,11 +83,11 @@
       <h3 class="fw-bold mb-1" style="color: var(--primary-blue);">Dashboard Dokumen</h3>
     </div>
 
-    {% if can_upload %}
-      <button type="button" class="btn btn-primary-appdoc shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
-        + Upload Berita Acara
-      </button>
-    {% endif %}
+      {% if can_upload and user.ttd_digital %}
+        <button type="button" class="btn btn-primary-appdoc shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
+          + Upload Berita Acara
+        </button>
+      {% endif %}
   </div>
 
   <!-- Antrean Butuh Approval -->

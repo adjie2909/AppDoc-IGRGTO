@@ -12,6 +12,7 @@ from django.core.paginator import Paginator
 from django.http import FileResponse, Http404
 from .utils import generate_signed_pdf
 from django.urls import reverse
+from .utils import generate_signed_pdf, notify_next_approver, notify_document_creator
 
 HIERARCHY_ORDER = [
     'supervisor',
@@ -156,6 +157,8 @@ def upload_document_view(request):
                     date_scale=str(date_scale),
                 )
 
+                notify_next_approver(doc, request=request)
+
             messages.success(request, f'Dokumen "{doc.judul_dokumen}" berhasil dibuat dan diteruskan ke tahap berikutnya.')
             return redirect('documents:dashboard')
         else:
@@ -260,9 +263,11 @@ def approve_document_view(request, doc_id):
             generate_signed_pdf(doc)
         except Exception as e:
             messages.warning(request, f'Dokumen approved, tetapi terjadi kendala generate PDF: {e}')
+        notify_document_creator(doc, action='approved', request=request)
         messages.success(request, f'Dokumen "{doc.judul_dokumen}" telah selesai disetujui sepenuhnya!')
     else:
         doc.save()
+        notify_next_approver(doc, request=request)
         messages.success(request, f'Dokumen "{doc.judul_dokumen}" berhasil disetujui dan diteruskan ke tahap berikutnya.')
 
     return redirect('documents:dashboard')
@@ -365,7 +370,7 @@ def reject_document_view(request, doc_id):
         action='rejected',
         comment=cleaned_reason,
     )
-
+    notify_document_creator(doc, action='rejected', reason=cleaned_reason, request=request)
     messages.warning(request, f'Dokumen "{doc.judul_dokumen}" telah ditolak.')
     return redirect('documents:dashboard')
 
