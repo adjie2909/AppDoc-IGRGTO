@@ -52,7 +52,7 @@ def notify_next_approver(doc, request=None):
             message=message,
             from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
             recipient_list=recipient_emails,
-            fail_silently=True,  # fail_silently=True agar jika internet kantor/SMTP gagal, transaksi web tidak crash
+            fail_silently=True,  
         )
     except Exception as e:
         print(f"[Email Error] Gagal kirim notifikasi approver: {e}")
@@ -117,7 +117,7 @@ def notify_document_creator(doc, action, reason=None, request=None):
         subject = f"[AppDoc-IGRGTO] Dokumen Telah Disetujui Sepenuhnya: {doc.judul_dokumen}"
         message = (
             f"Halo {creator.nama_pengguna},\n\n"
-            f"Kabar baik! Dokumen Berita Acara Anda telah disetujui sepenuhnya oleh seluruh pejabat terkait:\n\n"
+            f"Kabar baik! Dokumen Berita Acara Anda telah disetujui sepenuhnya oleh seluruh approvers terkait:\n\n"
             f"Judul Dokumen : {doc.judul_dokumen}\n"
             f"Status        : Selesai / Approved\n\n"
             f"Anda dapat mengunduh berkas PDF lengkap yang sudah bertanda tangan melalui tautan berikut:\n"
@@ -129,7 +129,7 @@ def notify_document_creator(doc, action, reason=None, request=None):
         subject = f"[AppDoc-IGRGTO] Dokumen Ditolak: {doc.judul_dokumen}"
         message = (
             f"Halo {creator.nama_pengguna},\n\n"
-            f"Dokumen Berita Acara yang Anda ajukan telah DITOLAK oleh pejabat pemeriksa.\n\n"
+            f"Dokumen Berita Acara yang Anda ajukan telah DITOLAK oleh approvers terkait.\n\n"
             f"Judul Dokumen   : {doc.judul_dokumen}\n"
             f"Alasan Penolakan: {reason}\n\n"
             f"Silakan periksa detailnya pada tautan berikut:\n"
