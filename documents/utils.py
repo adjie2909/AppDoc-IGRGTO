@@ -58,12 +58,57 @@ def notify_next_approver(doc, request=None):
         print(f"[Email Error] Gagal kirim notifikasi approver: {e}")
 
 
+def notify_next_approver(doc, request=None):
+    """
+    Mengirim notifikasi email ke user yang bertugas menandatangani dokumen pada status saat ini.
+    """
+    target_level = STATUS_TO_LEVEL.get(doc.status)
+    if not target_level:
+        return
+
+    User = get_user_model()
+    approvers = User.objects.filter(
+        userlevel=target_level, 
+        is_active=True
+    ).exclude(email__isnull=True).exclude(email__exact='')
+    
+    recipient_emails = [u.email for u in approvers if u.email]
+    if not recipient_emails:
+        return
+
+    doc_url = request.build_absolute_uri(f"/documents/document/{doc.id}/preview/") if request else f"/documents/document/{doc.id}/preview/"
+
+    subject = f"[AppDoc-IGRGTO] Permintaan Tanda Tangan: {doc.judul_dokumen}"
+    message = (
+        f"Halo Bapak/Ibu,\n\n"
+        f"Terdapat dokumen Berita Acara yang membutuhkan tanda tangan dan persetujuan dari Anda:\n\n"
+        f"Judul Dokumen : {doc.judul_dokumen}\n"
+        f"Dibuat Oleh   : {doc.uploaded_by.nama_pengguna} ({doc.uploaded_by.get_userlevel_display()})\n"
+        f"Status        : {doc.get_status_display()}\n\n"
+        f"Silakan periksa dan bubuhkan tanda tangan Anda melalui tautan berikut:\n"
+        f"{doc_url}\n\n"
+        f"Terima kasih.\n"
+        f"Sistem Otomatis AppDoc-IGRGTO"
+    )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            recipient_list=recipient_emails,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[Email Error] Gagal kirim notifikasi approver: {e}")
+
+
 def notify_document_creator(doc, action, reason=None, request=None):
     """
     Mengirim email ke pembuat dokumen ketika dokumennya selesai disetujui atau ditolak.
     """
     creator = doc.uploaded_by
-    if not creator.email:
+    if not creator or not creator.email:
         return
 
     doc_url = request.build_absolute_uri(f"/documents/document/{doc.id}/preview/") if request else f"/documents/document/{doc.id}/preview/"
@@ -72,7 +117,7 @@ def notify_document_creator(doc, action, reason=None, request=None):
         subject = f"[AppDoc-IGRGTO] Dokumen Telah Disetujui Sepenuhnya: {doc.judul_dokumen}"
         message = (
             f"Halo {creator.nama_pengguna},\n\n"
-            f"Kabar baik! Dokumen Anda telah disetujui sepenuhnya oleh seluruh pejabat terkait:\n\n"
+            f"Kabar baik! Dokumen Berita Acara Anda telah disetujui sepenuhnya oleh seluruh pejabat terkait:\n\n"
             f"Judul Dokumen : {doc.judul_dokumen}\n"
             f"Status        : Selesai / Approved\n\n"
             f"Anda dapat mengunduh berkas PDF lengkap yang sudah bertanda tangan melalui tautan berikut:\n"
@@ -84,7 +129,7 @@ def notify_document_creator(doc, action, reason=None, request=None):
         subject = f"[AppDoc-IGRGTO] Dokumen Ditolak: {doc.judul_dokumen}"
         message = (
             f"Halo {creator.nama_pengguna},\n\n"
-            f"Dokumen yang Anda ajukan telah DITOLAK oleh pejabat pemeriksa.\n\n"
+            f"Dokumen Berita Acara yang Anda ajukan telah DITOLAK oleh pejabat pemeriksa.\n\n"
             f"Judul Dokumen   : {doc.judul_dokumen}\n"
             f"Alasan Penolakan: {reason}\n\n"
             f"Silakan periksa detailnya pada tautan berikut:\n"
@@ -96,18 +141,12 @@ def notify_document_creator(doc, action, reason=None, request=None):
         return
 
     try:
-        context = {
-            'doc': doc,
-            'doc_url': doc_url,
-        }
-        html_content = render_to_string('emails/email_signature_request.html', context)
-        plain_content = strip_tags(html_content)
         send_mail(
             subject=subject,
             message=message,
             from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
             recipient_list=[creator.email],
-            fail_silently=True,
+            fail_silently=False,
         )
     except Exception as e:
         print(f"[Email Error] Gagal kirim notifikasi pembuat dokumen: {e}")
