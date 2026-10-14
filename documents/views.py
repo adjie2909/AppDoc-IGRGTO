@@ -53,7 +53,6 @@ def get_next_status(doc, current_userlevel):
 def dashboard_view(request):
     user = request.user
     level = user.userlevel
-
     queue_status_map = {
         'supervisor': 'waiting_supervisor',
         'junior manajer': 'waiting_junior_manager',
@@ -64,7 +63,24 @@ def dashboard_view(request):
     if level == 'staff':
         doc_queryset = Document.objects.filter(uploaded_by=user)
         active_queue = None
+    elif level == 'supervisor':
+        # SPV hanya melihat antrean dokumen yang menargetkan divisinya
+        target_status = queue_status_map.get(level)
+        active_queue = Document.objects.filter(
+            status=target_status,
+            target_spv_divisi=user.divisi
+        )
+        doc_queryset = Document.objects.all()
+    elif level == 'junior manajer':
+        # SJM hanya melihat antrean dokumen yang menargetkan divisinya
+        target_status = queue_status_map.get(level)
+        active_queue = Document.objects.filter(
+            status=target_status,
+            target_jm_divisi=user.divisi
+        )
+        doc_queryset = Document.objects.all()
     else:
+        # SAM dan SM memantau seluruh divisi
         target_status = queue_status_map.get(level)
         active_queue = Document.objects.filter(status=target_status)
         doc_queryset = Document.objects.all()
@@ -75,22 +91,20 @@ def dashboard_view(request):
 
     doc_queryset = doc_queryset.order_by('-created_at')
 
-        # Pagination: 5 dokumen per halaman
     paginator = Paginator(doc_queryset, 5)
     page_number = request.GET.get('page')
     documents = paginator.get_page(page_number)
-
     upload_form = DocumentUploadForm()
 
     context = {
-            'documents': documents,
-            'active_queue': active_queue,
-            'upload_form': upload_form,
-            'user_level': level,
-            'can_upload': level in ['staff', 'supervisor', 'junior manajer', 'store administration manager'],
-            'today_date': datetime.now().strftime('%d/%m/%Y'),
-            'selected_status': selected_status,
-            'status_choices': Document.STATUS_CHOICES,
+        'documents': documents,
+        'active_queue': active_queue,
+        'upload_form': upload_form,
+        'user_level': level,
+        'can_upload': level in ['staff', 'supervisor', 'junior manajer', 'store administration manager'],
+        'today_date': datetime.now().strftime('%d/%m/%Y'),
+        'selected_status': selected_status,
+        'status_choices': Document.STATUS_CHOICES,
     }
     return render(request, 'documents/dashboard.html', context)
 
@@ -106,12 +120,11 @@ def upload_document_view(request):
     if request.method == 'POST':
         form = DocumentUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            # Perhatikan: ambil dengan fallback agar cocok dengan form pembuat maupun approver
             try:
                 sig_x = float(request.POST.get('sig_x') or request.POST.get('creator_hidden_sig_x') or 0)
                 sig_y = float(request.POST.get('sig_y') or request.POST.get('creator_hidden_sig_y') or 0)
                 sig_page = int(request.POST.get('sig_page') or request.POST.get('creator_hidden_sig_page') or 1)
-                
+
                 date_x = float(request.POST.get('date_x') or request.POST.get('creator_hidden_date_x') or 0)
                 date_y = float(request.POST.get('date_y') or request.POST.get('creator_hidden_date_y') or 0)
             except (ValueError, TypeError):
@@ -132,12 +145,26 @@ def upload_document_view(request):
                 messages.error(request, 'Pilih setidaknya satu pejabat dengan level di atas Anda untuk tanda tangan.')
                 return redirect('documents:dashboard')
 
+            # Ambil target divisi dari POST
+            target_spv_divisi = request.POST.get('target_spv_divisi') if 'supervisor' in filtered_levels else None
+            target_jm_divisi = request.POST.get('target_jm_divisi') if 'junior manajer' in filtered_levels else None
+
+            # Validasi jika dicentang tapi tidak memilih divisi
+            if 'supervisor' in filtered_levels and not target_spv_divisi:
+                messages.error(request, 'Harap pilih divisi untuk Supervisor yang dituju.')
+                return redirect('documents:dashboard')
+            if 'junior manajer' in filtered_levels and not target_jm_divisi:
+                messages.error(request, 'Harap pilih divisi untuk Store Junior Manajer yang dituju.')
+                return redirect('documents:dashboard')
+
             initial_status = LEVEL_TO_STATUS[filtered_levels[0]]
 
             with transaction.atomic():
                 doc = form.save(commit=False)
                 doc.uploaded_by = request.user
                 doc.required_levels = filtered_levels
+                doc.target_spv_divisi = target_spv_divisi
+                doc.target_jm_divisi = target_jm_divisi
                 doc.status = initial_status
                 doc.save()
 
@@ -156,7 +183,6 @@ def upload_document_view(request):
                     date_y=date_y,
                     date_scale=str(date_scale),
                 )
-
                 notify_next_approver(doc, request=request)
 
             messages.success(request, f'Dokumen "{doc.judul_dokumen}" berhasil dibuat dan diteruskan ke tahap berikutnya.')
@@ -170,7 +196,6 @@ def upload_document_view(request):
 def document_preview_view(request, doc_id):
     doc = get_object_or_404(Document, id=doc_id)
     user = request.user
-
     level_permission_map = {
         'supervisor': 'waiting_supervisor',
         'junior manajer': 'waiting_junior_manager',
@@ -178,10 +203,17 @@ def document_preview_view(request, doc_id):
         'store manager': 'waiting_store_manager',
     }
 
-    can_action = (level_permission_map.get(user.userlevel) == doc.status)
-    logs = doc.approval_logs.all().order_by('-timestamp')
+    is_matching_status = (level_permission_map.get(user.userlevel) == doc.status)
+    if user.userlevel == 'supervisor':
+        can_action = is_matching_status and (user.divisi == doc.target_spv_divisi)
+    elif user.userlevel == 'junior manajer':
+        can_action = is_matching_status and (user.divisi == doc.target_jm_divisi)
+    else:
+        can_action = is_matching_status
 
+    logs = doc.approval_logs.all().order_by('-timestamp')
     approved_signatures_data = []
+
     for log in logs:
         if log.action in ['approved', 'submitted'] and log.signature_snapshot and log.sig_x is not None:
             approved_signatures_data.append({
@@ -209,17 +241,23 @@ def document_preview_view(request, doc_id):
 
 @login_required(login_url='accounts:login')
 def approve_document_view(request, doc_id):
-    """Menyimpan persetujuan pejabat berjenjang secara dinamis (skip yang tidak dipilih)."""
     if request.method != 'POST':
         return redirect('documents:preview', doc_id=doc_id)
 
     doc = get_object_or_404(Document, id=doc_id)
     user = request.user
 
-    # Cek apakah level user yang sedang login sesuai dengan status dokumen saat ini
     expected_level = STATUS_TO_LEVEL.get(doc.status)
     if not expected_level or user.userlevel != expected_level:
         messages.error(request, 'Anda tidak memiliki hak otorisasi untuk menyetujui dokumen ini saat ini.')
+        return redirect('documents:preview', doc_id=doc.id)
+
+    # Validasi kesesuaian divisi target
+    if user.userlevel == 'supervisor' and user.divisi != doc.target_spv_divisi:
+        messages.error(request, f'Dokumen ini ditujukan untuk Supervisor Divisi {doc.target_spv_divisi.title() if doc.target_spv_divisi else "-"}.')
+        return redirect('documents:preview', doc_id=doc.id)
+    if user.userlevel == 'junior manajer' and user.divisi != doc.target_jm_divisi:
+        messages.error(request, f'Dokumen ini ditujukan untuk Store Junior Manajer Divisi {doc.target_jm_divisi.title() if doc.target_jm_divisi else "-"}.')
         return redirect('documents:preview', doc_id=doc.id)
 
     try:
@@ -236,7 +274,6 @@ def approve_document_view(request, doc_id):
     date_text = request.POST.get('date_text', datetime.now().strftime('%d/%m/%Y'))
     date_scale = request.POST.get('date_scale', '14.0:4.0')
 
-    # Cari status berikutnya (otomatis melompati level yang tidak ada di doc.required_levels)
     new_status = get_next_status(doc, user.userlevel)
     doc.status = new_status
     doc.save()
@@ -330,7 +367,6 @@ def verify_password_view(request):
 
 @login_required(login_url='accounts:login')
 def reject_document_view(request, doc_id):
-    """Menangani penolakan dokumen dengan validasi ketat alasan penolakan."""
     if request.method != 'POST':
         return redirect('documents:preview', doc_id=doc_id)
 
@@ -349,9 +385,16 @@ def reject_document_view(request, doc_id):
         messages.error(request, 'Anda tidak memiliki hak otorisasi untuk menolak dokumen ini.')
         return redirect('documents:preview', doc_id=doc.id)
 
+    # Validasi divisi target sebelum reject
+    if user.userlevel == 'supervisor' and user.divisi != doc.target_spv_divisi:
+        messages.error(request, 'Anda tidak memiliki hak otorisasi untuk menolak dokumen ini.')
+        return redirect('documents:preview', doc_id=doc.id)
+    if user.userlevel == 'junior manajer' and user.divisi != doc.target_jm_divisi:
+        messages.error(request, 'Anda tidak memiliki hak otorisasi untuk menolak dokumen ini.')
+        return redirect('documents:preview', doc_id=doc.id)
+
     raw_reason = request.POST.get('reject_reason', '')
     cleaned_reason = raw_reason.strip()
-
     if len(cleaned_reason) < 15:
         messages.error(request, 'Penolakan gagal: Alasan penolakan minimal harus 15 karakter.')
         return redirect('documents:preview', doc_id=doc.id)

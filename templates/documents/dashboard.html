@@ -276,39 +276,75 @@
               Pihak yang dibutuhkan Tanda Tangan
             </label>
             <div class="form-text small mb-2 text-muted">
-              Centang level yang wajib tanda tangan. Level yang tidak dicentang akan otomatis dilewati.
+              Centang pejabat yang wajib tanda tangan dan tentukan divisinya jika diperlukan.
             </div>
 
-            <div class="d-flex flex-column gap-2 mt-2" id="approval-levels-checklist">
+            <div class="d-flex flex-column gap-3 mt-2" id="approval-levels-checklist">
               {% if user.userlevel == 'staff' %}
-                <div class="form-check">
-                  <input class="form-check-input chk-target-level" type="checkbox" value="supervisor" id="chk_spv">
-                  <label class="form-check-label fw-semibold" for="chk_spv">Supervisor (SPV)</label>
+                <!-- Checklist Supervisor -->
+                <div class="border rounded p-2 bg-white">
+                  <div class="form-check">
+                    <input class="form-check-input chk-target-level" type="checkbox" value="supervisor" id="chk_spv" checked>
+                    <label class="form-check-label fw-semibold" for="chk_spv">Supervisor (SPV)</label>
+                  </div>
+                  <div class="mt-2 ms-4" id="container_spv_divisi">
+                    <label class="form-label small fw-semibold text-muted mb-1">Pilih Divisi Supervisor:</label>
+                    <select id="init_target_spv_divisi" class="form-select form-select-sm">
+                      <option value="">-- Pilih Divisi SPV --</option>
+                      <option value="food">Food</option>
+                      <option value="non food">Non Food</option>
+                      <option value="perishable">Perishable</option>
+                      <option value="logistik 1">Logistik 1</option>
+                      <option value="logistik 2">Logistik 2</option>
+                      <option value="member service">Member Service</option>
+                      <option value="back office">Back Office</option>
+                    </select>
+                  </div>
                 </div>
               {% endif %}
 
               {% if user.userlevel == 'staff' or user.userlevel == 'supervisor' %}
-                <div class="form-check">
-                  <input class="form-check-input chk-target-level" type="checkbox" value="junior manajer" id="chk_jm">
-                  <label class="form-check-label fw-semibold" for="chk_jm">Store Junior Manajer (SJM)</label>
+                <!-- Checklist Junior Manager -->
+                <div class="border rounded p-2 bg-white">
+                  <div class="form-check">
+                    <input class="form-check-input chk-target-level" type="checkbox" value="junior manajer" id="chk_jm" checked>
+                    <label class="form-check-label fw-semibold" for="chk_jm">Store Junior Manajer (SJM)</label>
+                  </div>
+                  <div class="mt-2 ms-4" id="container_jm_divisi">
+                    <label class="form-label small fw-semibold text-muted mb-1">Pilih Divisi Junior Manajer:</label>
+                    <select id="init_target_jm_divisi" class="form-select form-select-sm">
+                      <option value="">-- Pilih Divisi SJM --</option>
+                      <option value="food">Food</option>
+                      <option value="non food">Non Food</option>
+                      <option value="perishable">Perishable</option>
+                      <option value="logistik 1">Logistik 1</option>
+                      <option value="logistik 2">Logistik 2</option>
+                      <option value="member service">Member Service</option>
+                      <option value="back office">Back Office</option>
+                    </select>
+                  </div>
                 </div>
               {% endif %}
 
               {% if user.userlevel == 'staff' or user.userlevel == 'supervisor' or user.userlevel == 'junior manajer' %}
-                <div class="form-check">
-                  <input class="form-check-input chk-target-level" type="checkbox" value="store administration manager" id="chk_sam">
-                  <label class="form-check-label fw-semibold" for="chk_sam">Store Administration Manager (SAM)</label>
+                <!-- Checklist SAM -->
+                <div class="border rounded p-2 bg-white">
+                  <div class="form-check">
+                    <input class="form-check-input chk-target-level" type="checkbox" value="store administration manager" id="chk_sam">
+                    <label class="form-check-label fw-semibold" for="chk_sam">Store Administration Manager (SAM)</label>
+                  </div>
                 </div>
               {% endif %}
 
-              <div class="form-check">
-                <input class="form-check-input chk-target-level" type="checkbox" value="store manager" id="chk_sm" checked>
-                <label class="form-check-label fw-semibold" for="chk_sm">Store Manager (SM)</label>
+              <!-- Checklist SM -->
+              <div class="border rounded p-2 bg-white">
+                <div class="form-check">
+                  <input class="form-check-input chk-target-level" type="checkbox" value="store manager" id="chk_sm" checked>
+                  <label class="form-check-label fw-semibold" for="chk_sm">Store Manager (SM)</label>
+                </div>
               </div>
             </div>
           </div>
-
-        </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
           <button type="submit" class="btn btn-primary-appdoc">Lanjut ke Pembubuhan TTD &rarr;</button>

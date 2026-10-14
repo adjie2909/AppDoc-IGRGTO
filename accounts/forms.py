@@ -62,12 +62,18 @@ class UserRegisterForm(forms.ModelForm):
 
     class Meta:
         model = CustomUser
-        fields = ('userid', 'nama_pengguna', 'email', 'userlevel', 'ttd_digital')
+        fields = ('userid', 'nama_pengguna', 'email', 'userlevel', 'divisi', 'ttd_digital')
         widgets = {
             'userid': forms.TextInput(attrs={'class': 'form-control text-uppercase'}),
             'nama_pengguna': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nama lengkap Anda'}),
             'userlevel': forms.Select(attrs={'class': 'form-select'}),
+            'divisi': forms.Select(attrs={'class': 'form-select', 'id': 'id_divisi'}),
         }
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['divisi'].required = False
+        self.fields['divisi'].choices = [('', '-- Pilih Divisi --')] + list(CustomUser.DIVISI_CHOICES)
 
     def clean_userid(self):
         userid = self.cleaned_data.get('userid', '').strip().upper()
@@ -85,14 +91,27 @@ class UserRegisterForm(forms.ModelForm):
         cleaned_data = super().clean()
         pwd = cleaned_data.get('password')
         pwd_confirm = cleaned_data.get('password_confirm')
-
         if pwd and pwd_confirm and pwd != pwd_confirm:
             self.add_error('password_confirm', 'Password konfirmasi tidak cocok.')
+
+        # Validasi wajib divisi untuk level tertentu
+        userlevel = cleaned_data.get('userlevel')
+        divisi = cleaned_data.get('divisi')
+        divisi_required_levels = ['staff', 'supervisor', 'junior manajer']
+
+        if userlevel in divisi_required_levels:
+            if not divisi:
+                self.add_error('divisi', 'Divisi wajib dipilih untuk level Staff, Supervisor, dan Store Junior Manajer.')
+        else:
+            # Jika SAM atau Store Manager, kosongkan divisi
+            cleaned_data['divisi'] = None
+
         return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data['password'])
+        user.divisi = self.cleaned_data.get('divisi')
         if commit:
             user.save()
         return user

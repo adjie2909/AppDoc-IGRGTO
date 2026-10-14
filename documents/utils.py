@@ -18,85 +18,48 @@ STATUS_TO_LEVEL = {
 def notify_next_approver(doc, request=None):
     """
     Mengirim notifikasi email ke user yang bertugas menandatangani dokumen pada status saat ini.
+    Menyesuaikan divisi berdasarkan target divisi yang dipilih pada dokumen.
     """
     target_level = STATUS_TO_LEVEL.get(doc.status)
     if not target_level:
         return
 
     User = get_user_model()
-    # Cari semua user aktif yang memiliki level tersebut dan email valid
-    approvers = User.objects.filter(userlevel=target_level, is_active=True).exclude(email__isnull=True).exclude(email__exact='')
     
-    recipient_emails = [u.email for u in approvers if u.email]
-    if not recipient_emails:
-        return
-
-    doc_url = request.build_absolute_uri(f"/documents/document/{doc.id}/preview/") if request else f"/documents/document/{doc.id}/preview/"
-
-    subject = f"[AppDoc-IGRGTO] Permintaan Tanda Tangan: {doc.judul_dokumen}"
-    message = (
-        f"Halo Bapak/Ibu,\n\n"
-        f"Dokumen berikut membutuhkan tanda tangan dan persetujuan dari Anda:\n\n"
-        f"Judul Dokumen : {doc.judul_dokumen}\n"
-        f"Dibuat Oleh   : {doc.uploaded_by.nama_pengguna} ({doc.uploaded_by.get_userlevel_display()})\n"
-        f"Status        : {doc.get_status_display()}\n\n"
-        f"Silakan tinjau dan bubuhkan tanda tangan Anda melalui tautan berikut:\n"
-        f"{doc_url}\n\n"
-        f"Terima kasih.\n"
-        f"Sistem Otomatis AppDoc-IGRGTO"
-    )
-
-    try:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-            recipient_list=recipient_emails,
-            fail_silently=True,  
-        )
-    except Exception as e:
-        print(f"[Email Error] Gagal kirim notifikasi approver: {e}")
-
-
-def notify_next_approver(doc, request=None):
-    """
-    Mengirim notifikasi email ke user yang bertugas menandatangani dokumen pada status saat ini.
-    """
-    target_level = STATUS_TO_LEVEL.get(doc.status)
-    if not target_level:
-        return
-
-    User = get_user_model()
-    approvers = User.objects.filter(
+    approvers_query = User.objects.filter(
         userlevel=target_level, 
         is_active=True
     ).exclude(email__isnull=True).exclude(email__exact='')
-    
-    recipient_emails = [u.email for u in approvers if u.email]
+
+    # Filter target divisi yang dipilih pada dokumen
+    if target_level == 'supervisor' and doc.target_spv_divisi:
+        approvers_query = approvers_query.filter(divisi=doc.target_spv_divisi)
+    elif target_level == 'junior manajer' and doc.target_jm_divisi:
+        approvers_query = approvers_query.filter(divisi=doc.target_jm_divisi)
+
+    recipient_emails = [u.email for u in approvers_query if u.email]
     if not recipient_emails:
+        print(f"[Email Info] Tidak ada email ditemukan untuk {target_level}.")
         return
 
     doc_url = request.build_absolute_uri(f"/documents/document/{doc.id}/preview/") if request else f"/documents/document/{doc.id}/preview/"
-
     subject = f"[AppDoc-IGRGTO] Permintaan Tanda Tangan: {doc.judul_dokumen}"
-    message = (
-        f"Halo Bapak/Ibu,\n\n"
-        f"Terdapat dokumen Berita Acara yang membutuhkan tanda tangan dan persetujuan dari Anda:\n\n"
-        f"Judul Dokumen : {doc.judul_dokumen}\n"
-        f"Dibuat Oleh   : {doc.uploaded_by.nama_pengguna} ({doc.uploaded_by.get_userlevel_display()})\n"
-        f"Status        : {doc.get_status_display()}\n\n"
-        f"Silakan periksa dan bubuhkan tanda tangan Anda melalui tautan berikut:\n"
-        f"{doc_url}\n\n"
-        f"Terima kasih.\n"
-        f"Sistem Otomatis AppDoc-IGRGTO"
-    )
+
+    context = {
+        'doc': doc,
+        'doc_url': doc_url,
+    }
 
     try:
+        html_message = render_to_string('emails/email_signature_requests.html', context)
+        plain_message = strip_tags(html_message)
+
         send_mail(
             subject=subject,
-            message=message,
+            message=plain_message,
             from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
             recipient_list=recipient_emails,
+            html_message=html_message,
             fail_silently=False,
         )
     except Exception as e:
@@ -151,15 +114,15 @@ def notify_document_creator(doc, action, reason=None, request=None):
     except Exception as e:
         print(f"[Email Error] Gagal kirim notifikasi pembuat dokumen: {e}")
 
+
 def generate_signed_pdf(doc):
+    # Kode generate_signed_pdf Anda tetap seperti semula
     doc_pdf = fitz.open(doc.file_dokumen.path)
     logs = doc.approval_logs.filter(action__in=['submitted', 'approved']).order_by('timestamp')
-
     for log in logs:
         page_idx = (log.sig_page or 1) - 1
         if page_idx < 0 or page_idx >= len(doc_pdf):
             continue
-
         page = doc_pdf[page_idx]
         p_w = page.rect.width
         p_h = page.rect.height
@@ -171,12 +134,10 @@ def generate_signed_pdf(doc):
                 parts = str(log.sig_scale).split(':')
                 w_pct = float(parts[0])
                 h_pct = float(parts[1])
-
             x0 = (log.sig_x / 100.0) * p_w
             y0 = (log.sig_y / 100.0) * p_h
             x1 = x0 + (w_pct / 100.0) * p_w
             y1 = y0 + (h_pct / 100.0) * p_h
-
             rect_sig = fitz.Rect(x0, y0, x1, y1)
             try:
                 sig_img_bytes = log.signature_snapshot.read()
@@ -191,22 +152,15 @@ def generate_signed_pdf(doc):
                 dparts = str(log.date_scale).split(':')
                 dw_pct = float(dparts[0])
                 dh_pct = float(dparts[1])
-
             dx0 = (log.date_x / 100.0) * p_w
             dy0 = (log.date_y / 100.0) * p_h
             box_w = (dw_pct / 100.0) * p_w
             box_h = (dh_pct / 100.0) * p_h
-
             fontsize = 8.5
             text = str(log.date_text).strip()
-
-            # Hitung lebar teks agar posisi horizontal persis di tengah kotak
             text_len = fitz.get_text_length(text, fontname="helv", fontsize=fontsize)
             text_x = dx0 + max(0.0, (box_w - text_len) / 2.0)
-            
-            # Baseline vertikal pas di tengah ketinggian kotak
             text_y = dy0 + (box_h / 2.0) + (fontsize / 3.0)
-
             page.insert_text(
                 fitz.Point(text_x, text_y),
                 text,
@@ -214,10 +168,8 @@ def generate_signed_pdf(doc):
                 fontname="helv",
                 color=(0, 0, 0)
             )
-
     output_stream = BytesIO()
     doc_pdf.save(output_stream)
     doc_pdf.close()
-
     filename = f"SIGNED_{doc.id}_{doc.file_dokumen.name.split('/')[-1]}"
     doc.signed_file.save(filename, ContentFile(output_stream.getvalue()), save=True)

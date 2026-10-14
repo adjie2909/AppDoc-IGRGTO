@@ -21,7 +21,7 @@ class DocumentUploadForm(forms.ModelForm):
 
     class Meta:
         model = Document
-        fields = ('judul_dokumen', 'file_dokumen')
+        fields = ('judul_dokumen', 'file_dokumen', 'target_spv_divisi', 'target_jm_divisi')
         widgets = {
             'judul_dokumen': forms.TextInput(attrs={
                 'class': 'form-control',

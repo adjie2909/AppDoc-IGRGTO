@@ -52,6 +52,18 @@ class Document(models.Model):
         blank=True,
         verbose_name='Level Persetujuan yang Diperlukan'
     )
+    target_spv_divisi = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        verbose_name='Target Divisi Supervisor'
+    )
+    target_jm_divisi = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        verbose_name='Target Divisi Junior Manajer'
+    )
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Tanggal Upload')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Terakhir Diperbarui')

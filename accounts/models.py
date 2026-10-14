@@ -53,7 +53,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('store manager', 'Store Manager'),
     )
 
-    # Validator: Alfanumerik tepat 3 karakter
+    DIVISI_CHOICES = (
+        ('food', 'Food'),
+        ('non food', 'Non Food'),
+        ('perishable', 'Perishable'),
+        ('logistik 1', 'Logistik 1'),
+        ('logistik 2', 'Logistik 2'),
+        ('member service', 'Member Service'),
+        ('back office', 'Back Office'),
+    )
+
+   
     userid_validator = RegexValidator(
         regex=r'^[A-Za-z0-9]{3}$',
         message='UserID harus terdiri dari tepat 3 karakter alfanumerik (huruf/angka).'
@@ -82,6 +92,15 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         default='staff',
         verbose_name='Level User'
     )
+
+    divisi = models.CharField(
+        max_length=30,
+        choices=DIVISI_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name='Divisi'
+    )
+
     ttd_digital = models.ImageField(
         upload_to='signatures/',
         null=True,
