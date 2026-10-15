@@ -54,6 +54,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     )
 
     DIVISI_CHOICES = (
+        ('store manager','Store Manager'),
+        ('store administration manager','Store Administration Manager'),
         ('food', 'Food'),
         ('non food', 'Non Food'),
         ('perishable', 'Perishable'),

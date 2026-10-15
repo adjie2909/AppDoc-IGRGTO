@@ -17,32 +17,23 @@
           
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">UserID (3 Karakter)</label>
+              <label class="form-label fw-semibold">UserID  <span class="text-danger">*</span></label>
               {{ form.userid }}
               {% if form.userid.errors %}
                 <div class="text-danger small mt-1">{{ form.userid.errors.0 }}</div>
               {% endif %}
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label fw-semibold">Level User</label>
-              {{ form.userlevel }}
-              {% if form.userlevel.errors %}
-                <div class="text-danger small mt-1">{{ form.userlevel.errors.0 }}</div>
+              <label class="form-label fw-semibold">Divisi <span class="text-danger">*</span></label>
+              {{ form.divisi }}
+              {% if form.divisi.errors %}
+                <div class="text-danger small mt-1">{{ form.divisi.errors.0 }}</div>
               {% endif %}
             </div>
           </div>
 
-          <!-- Bagian Divisi Dinamis -->
-          <div class="mb-3" id="div-divisi-container" style="display: none;">
-            <label class="form-label fw-semibold">Divisi <span class="text-danger">*</span></label>
-            {{ form.divisi }}
-            {% if form.divisi.errors %}
-              <div class="text-danger small mt-1">{{ form.divisi.errors.0 }}</div>
-            {% endif %}
-          </div>
-
           <div class="mb-3">
-            <label class="form-label fw-semibold">Nama Pengguna</label>
+            <label class="form-label fw-semibold">Nama Pengguna <span class="text-danger">*</span></label>
             {{ form.nama_pengguna }}
             {% if form.nama_pengguna.errors %}
               <div class="text-danger small mt-1">{{ form.nama_pengguna.errors.0 }}</div>
@@ -50,7 +41,7 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold">Email</label>
+            <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
             {{ form.email }}
             {% if form.email.errors %}
               <div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>
@@ -75,7 +66,7 @@
           </div>
 
           <div class="mb-4">
-            <label class="form-label fw-semibold">Upload Tanda Tangan Digital</label>
+            <label class="form-label fw-semibold">Upload Tanda Tangan Digital <span class="text-danger">*</span></label>
             {{ form.ttd_digital }}
             <div class="form-text small">Format PNG/JPG transparan (Maks. 2MB). Digunakan untuk stempel approval.</div>
             {% if form.ttd_digital.errors %}
@@ -94,41 +85,4 @@
     </div>
   </div>
 </div>
-
-<!-- Letakkan script langsung di dalam block content -->
-<script>
-  (function () {
-    function initDivisiToggle() {
-      // Ambil elemen select userlevel (bisa lewat id atau name)
-      const userlevelSelect = document.getElementById('id_userlevel') || document.querySelector('select[name="userlevel"]');
-      const divisiContainer = document.getElementById('div-divisi-container');
-      const divisiSelect = document.getElementById('id_divisi') || document.querySelector('select[name="divisi"]');
-
-      if (!userlevelSelect || !divisiContainer) return;
-
-      const levelsWithDivisi = ['staff', 'supervisor', 'junior manajer'];
-
-      function toggleDivisi() {
-        const selectedLevel = (userlevelSelect.value || '').trim().toLowerCase();
-        if (levelsWithDivisi.includes(selectedLevel)) {
-          divisiContainer.style.display = 'block';
-        } else {
-          divisiContainer.style.display = 'none';
-          if (divisiSelect) {
-            divisiSelect.value = '';
-          }
-        }
-      }
-
-      userlevelSelect.addEventListener('change', toggleDivisi);
-      toggleDivisi();
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initDivisiToggle);
-    } else {
-      initDivisiToggle();
-    }
-  })();
-</script>
 {% endblock %}

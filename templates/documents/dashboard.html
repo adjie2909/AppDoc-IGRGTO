@@ -77,17 +77,16 @@
 
 {% block content %}
 <div class="container-fluid px-4">
-  
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h3 class="fw-bold mb-1" style="color: var(--primary-blue);">Dashboard Dokumen</h3>
     </div>
 
-      {% if can_upload and user.ttd_digital %}
-        <button type="button" class="btn btn-primary-appdoc shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
-          + Upload Berita Acara
-        </button>
-      {% endif %}
+    {% if can_upload and user.ttd_digital %}
+      <button type="button" class="btn btn-primary-appdoc shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
+        + Upload Berita Acara
+      </button>
+    {% endif %}
   </div>
 
   <!-- Antrean Butuh Approval -->
@@ -188,6 +187,7 @@
                 {% else %}
                   <span class="badge-status badge-waiting">{{ doc.get_status_display }}</span>
                 {% endif %}
+              </td>
               <td class="text-center">
                 <div class="d-flex justify-content-center gap-1">
                   <a href="{% url 'documents:preview' doc.id %}" class="btn btn-sm btn-outline-secondary">Detail</a>
@@ -345,6 +345,7 @@
               </div>
             </div>
           </div>
+        </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
           <button type="submit" class="btn btn-primary-appdoc">Lanjut ke Pembubuhan TTD &rarr;</button>
@@ -413,29 +414,28 @@
           </div>
         </div>
       </div>
-        <div class="modal-footer">
-          <form method="post" action="{% url 'documents:upload' %}" enctype="multipart/form-data" id="form-final-upload">
-            {% csrf_token %}
-            <input type="hidden" name="judul_dokumen" id="final_judul_dokumen">
-            <input type="file" name="file_dokumen" id="final_file_dokumen" class="d-none">
-            
-            <!-- Pastikan atribut name adalah sig_x, sig_y, date_x, date_y -->
-            <input type="hidden" name="sig_x" id="creator_hidden_sig_x" value="0">
-            <input type="hidden" name="sig_y" id="creator_hidden_sig_y" value="0">
-            <input type="hidden" name="sig_scale" id="creator_hidden_sig_scale" value="15.0:8.0">
-            <input type="hidden" name="sig_page" id="creator_hidden_sig_page" value="1">
-            
-            <input type="hidden" name="date_text" value="{{ today_date }}">
-            <input type="hidden" name="date_x" id="creator_hidden_date_x" value="0">
-            <input type="hidden" name="date_y" id="creator_hidden_date_y" value="0">
-            <input type="hidden" name="date_scale" id="creator_hidden_date_scale" value="14.0:4.0">
-            
-            <div id="final_approval_targets_container"></div>
+      <div class="modal-footer">
+        <form method="post" action="{% url 'documents:upload' %}" enctype="multipart/form-data" id="form-final-upload">
+          {% csrf_token %}
+          <input type="hidden" name="judul_dokumen" id="final_judul_dokumen">
+          <input type="file" name="file_dokumen" id="final_file_dokumen" class="d-none">
+          
+          <input type="hidden" name="sig_x" id="creator_hidden_sig_x" value="0">
+          <input type="hidden" name="sig_y" id="creator_hidden_sig_y" value="0">
+          <input type="hidden" name="sig_scale" id="creator_hidden_sig_scale" value="15.0:8.0">
+          <input type="hidden" name="sig_page" id="creator_hidden_sig_page" value="1">
+          
+          <input type="hidden" name="date_text" value="{{ today_date }}">
+          <input type="hidden" name="date_x" id="creator_hidden_date_x" value="0">
+          <input type="hidden" name="date_y" id="creator_hidden_date_y" value="0">
+          <input type="hidden" name="date_scale" id="creator_hidden_date_scale" value="14.0:4.0">
+          
+          <div id="final_approval_targets_container"></div>
 
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal & Buang</button>
-            <button type="submit" class="btn btn-primary-appdoc">Bubuhkan & Ajukan Berita Acara</button>
-          </form>
-        </div>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal & Buang</button>
+          <button type="submit" class="btn btn-primary-appdoc">Bubuhkan & Ajukan Berita Acara</button>
+        </form>
+      </div>
     </div>
   </div>
 </div>
@@ -459,13 +459,29 @@
   let creatorPdfDoc = null;
   let creatorPageNum = 1;
 
-document.getElementById('form-init-upload').addEventListener('submit', function (e) {
+  // Toggle visibilitas dropdown divisi saat checkbox SPV / SJM diubah
+  const chkSpv = document.getElementById('chk_spv');
+  const containerSpvDivisi = document.getElementById('container_spv_divisi');
+  if (chkSpv && containerSpvDivisi) {
+    chkSpv.addEventListener('change', () => {
+      containerSpvDivisi.style.display = chkSpv.checked ? 'block' : 'none';
+    });
+  }
+
+  const chkJm = document.getElementById('chk_jm');
+  const containerJmDivisi = document.getElementById('container_jm_divisi');
+  if (chkJm && containerJmDivisi) {
+    chkJm.addEventListener('change', () => {
+      containerJmDivisi.style.display = chkJm.checked ? 'block' : 'none';
+    });
+  }
+
+  document.getElementById('form-init-upload').addEventListener('submit', function (e) {
     e.preventDefault();
     const judul = document.getElementById('init_judul_dokumen').value.trim();
     const fileInput = document.getElementById('init_file_dokumen');
     const alertBox = document.getElementById('init-upload-error');
     
-    // Ambil checkbox level approval yang dicentang
     const checkedLevels = Array.from(document.querySelectorAll('.chk-target-level:checked')).map(cb => cb.value);
 
     if (!judul || !fileInput.files.length) {
@@ -478,6 +494,30 @@ document.getElementById('form-init-upload').addEventListener('submit', function 
       alertBox.textContent = 'Pilih minimal satu pejabat yang wajib menandatangani dokumen!';
       alertBox.classList.remove('d-none');
       return;
+    }
+
+    // Validasi pemilihan divisi SPV
+    let spvDivisiVal = '';
+    if (checkedLevels.includes('supervisor')) {
+      const spvSel = document.getElementById('init_target_spv_divisi');
+      spvDivisiVal = spvSel ? spvSel.value : '';
+      if (!spvDivisiVal) {
+        alertBox.textContent = 'Harap pilih divisi untuk Supervisor!';
+        alertBox.classList.remove('d-none');
+        return;
+      }
+    }
+
+    // Validasi pemilihan divisi SJM
+    let jmDivisiVal = '';
+    if (checkedLevels.includes('junior manajer')) {
+      const jmSel = document.getElementById('init_target_jm_divisi');
+      jmDivisiVal = jmSel ? jmSel.value : '';
+      if (!jmDivisiVal) {
+        alertBox.textContent = 'Harap pilih divisi untuk Store Junior Manajer!';
+        alertBox.classList.remove('d-none');
+        return;
+      }
     }
 
     const file = fileInput.files[0];
@@ -496,9 +536,10 @@ document.getElementById('form-init-upload').addEventListener('submit', function 
       dataTransfer.items.add(file);
       document.getElementById('final_file_dokumen').files = dataTransfer.files;
 
-      // Pindahkan pilihan level ke form final
+      // Pindahkan pilihan level & target divisi ke form final
       const targetContainer = document.getElementById('final_approval_targets_container');
       targetContainer.innerHTML = '';
+      
       checkedLevels.forEach(lvl => {
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
@@ -506,6 +547,22 @@ document.getElementById('form-init-upload').addEventListener('submit', function 
         hiddenInput.value = lvl;
         targetContainer.appendChild(hiddenInput);
       });
+
+      if (spvDivisiVal) {
+        const hiddenSpv = document.createElement('input');
+        hiddenSpv.type = 'hidden';
+        hiddenSpv.name = 'target_spv_divisi';
+        hiddenSpv.value = spvDivisiVal;
+        targetContainer.appendChild(hiddenSpv);
+      }
+
+      if (jmDivisiVal) {
+        const hiddenJm = document.createElement('input');
+        hiddenJm.type = 'hidden';
+        hiddenJm.name = 'target_jm_divisi';
+        hiddenJm.value = jmDivisiVal;
+        targetContainer.appendChild(hiddenJm);
+      }
 
       modalUpload.hide();
       document.getElementById('input-creator-password').value = '';

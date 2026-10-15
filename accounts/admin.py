@@ -17,7 +17,7 @@ class CustomUserAdmin(UserAdmin):
     # Tampilan saat edit user yang sudah ada
     fieldsets = (
         (None, {'fields': ('userid',)}),
-        ('Informasi Pribadi', {'fields': ('nama_pengguna', 'email', 'userlevel', 'ttd_digital')}),
+        ('Informasi Pribadi', {'fields': ('nama_pengguna', 'email', 'userlevel','divisi', 'ttd_digital')}),
         ('Hak Akses', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
 
