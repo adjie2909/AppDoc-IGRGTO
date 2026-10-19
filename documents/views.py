@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count, Q
 from .models import Document, ApprovalLog
 from .forms import DocumentUploadForm
 from django.core.paginator import Paginator
@@ -53,6 +54,12 @@ def get_next_status(doc, current_userlevel):
 def dashboard_view(request):
     user = request.user
     level = user.userlevel
+    summary_levels = {
+        'supervisor',
+        'junior manajer',
+        'store administration manager',
+        'store manager',
+    }
     queue_status_map = {
         'supervisor': 'waiting_supervisor',
         'junior manajer': 'waiting_junior_manager',
@@ -61,29 +68,55 @@ def dashboard_view(request):
     }
 
     if level == 'staff':
-        doc_queryset = Document.objects.filter(uploaded_by=user)
+        document_scope = Document.objects.filter(uploaded_by=user)
         active_queue = None
     elif level == 'supervisor':
-        # SPV hanya melihat antrean dokumen yang menargetkan divisinya
+        # SPV hanya melihat dokumen yang menargetkan divisinya.
         target_status = queue_status_map.get(level)
-        active_queue = Document.objects.filter(
-            status=target_status,
-            target_spv_divisi=user.divisi
+        document_scope = (
+            Document.objects.filter(target_spv_divisi=user.divisi)
+            if user.divisi
+            else Document.objects.none()
         )
-        doc_queryset = Document.objects.all()
+        active_queue = document_scope.filter(
+            status=target_status,
+        )
     elif level == 'junior manajer':
-        # SJM hanya melihat antrean dokumen yang menargetkan divisinya
+        # Store Junior Manajer hanya melihat dokumen yang menargetkan divisinya.
         target_status = queue_status_map.get(level)
-        active_queue = Document.objects.filter(
-            status=target_status,
-            target_jm_divisi=user.divisi
+        document_scope = (
+            Document.objects.filter(target_jm_divisi=user.divisi)
+            if user.divisi
+            else Document.objects.none()
         )
-        doc_queryset = Document.objects.all()
+        active_queue = document_scope.filter(
+            status=target_status,
+        )
     else:
-        # SAM dan SM memantau seluruh divisi
+        # SAM dan Store Manager memantau seluruh divisi.
         target_status = queue_status_map.get(level)
-        active_queue = Document.objects.filter(status=target_status)
-        doc_queryset = Document.objects.all()
+        document_scope = Document.objects.all()
+        active_queue = document_scope.filter(status=target_status)
+
+    show_summary = level in summary_levels
+    summary = None
+    if show_summary:
+        summary = document_scope.aggregate(
+            total=Count('pk'),
+            approved=Count('pk', filter=Q(status='approved')),
+            rejected=Count('pk', filter=Q(status='rejected')),
+        )
+
+    if level in {'supervisor', 'junior manajer'}:
+        summary_scope_label = (
+            f'Divisi {user.get_divisi_display()}'
+            if user.divisi
+            else 'Divisi belum diatur'
+        )
+    else:
+        summary_scope_label = 'Semua divisi'
+
+    doc_queryset = document_scope
 
     selected_status = request.GET.get('status', 'all')
     if selected_status and selected_status != 'all':
@@ -105,6 +138,9 @@ def dashboard_view(request):
         'today_date': datetime.now().strftime('%d/%m/%Y'),
         'selected_status': selected_status,
         'status_choices': Document.STATUS_CHOICES,
+        'show_summary': show_summary,
+        'summary': summary,
+        'summary_scope_label': summary_scope_label,
     }
     return render(request, 'documents/dashboard.html', context)
 

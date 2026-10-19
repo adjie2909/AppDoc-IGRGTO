@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}Profil Pengguna - AppDoc IGRGTO{% endblock %}
+
+{% block extra_css %}
+<style>
+  .profile-page { max-width: 1180px; }
+  .profile-page .min-w-0 { min-width: 0; }
+  .profile-page .card-custom { box-shadow: none; }
+  .profile-grid {
+    display: grid;
+    grid-template-columns: minmax(240px, 0.82fr) minmax(0, 2fr);
+    grid-template-areas: "account signature" "security signature";
+    gap: 0.75rem;
+    align-items: start;
+  }
+  .profile-account { grid-area: account; }
+  .profile-security { grid-area: security; }
+  .profile-signature { grid-area: signature; }
+  .profile-kv { margin: 0; }
+  .profile-kv > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .profile-kv > div:last-child { border-bottom: 0; padding-bottom: 0; }
+  .profile-kv dt { color: var(--text-muted); font-size: 0.78rem; font-weight: 500; }
+  .profile-kv dd { margin: 0; color: var(--text-dark); font-size: 0.82rem; font-weight: 600; text-align: right; }
+  .signature-surface {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 230px;
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background-color: var(--bg-card);
+    background-image:
+      linear-gradient(45deg, var(--border-light) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--border-light) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--border-light) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--border-light) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .signature-surface.is-white { background-image: none; background-color: #FFFFFF; }
+  .signature-surface img { max-width: 100%; max-height: 240px; object-fit: contain; }
+  .signature-empty { max-width: 280px; color: var(--text-muted); text-align: center; }
+  .signature-toggle .btn { font-size: 0.75rem; padding: 0.25rem 0.55rem; }
+  .signature-toggle .btn.active { background: var(--primary-blue); border-color: var(--primary-blue); color: #FFFFFF; }
+  .upload-zone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px dashed var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-body);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .upload-zone:hover, .upload-zone:focus-visible, .upload-zone.is-dragover {
+    border-color: var(--primary-blue);
+    background: var(--primary-blue-subtle);
+    outline: none;
+  }
+  .upload-zone.is-invalid { border-color: var(--accent-red); background: var(--accent-red-subtle); }
+  .upload-zone input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .upload-icon { width: 26px; height: 26px; flex: 0 0 auto; color: var(--primary-blue); }
+  .password-toggle { border-color: var(--border-light); color: var(--text-muted); background: #FFFFFF; }
+  .password-toggle:hover, .password-toggle:focus { color: var(--primary-blue); border-color: var(--primary-blue); background: var(--primary-blue-subtle); }
+  .password-toggle svg { width: 16px; height: 16px; }
+  .password-toggle .icon-eye-off { display: none; }
+  .password-toggle[aria-pressed="true"] .icon-eye { display: none; }
+  .password-toggle[aria-pressed="true"] .icon-eye-off { display: block; }
+  .strength-bars { display: flex; gap: 4px; margin-top: 0.4rem; }
+  .strength-bars span { height: 3px; flex: 1; border-radius: 999px; background: var(--border-light); transition: background-color 0.15s ease; }
+  .strength-bars[data-score="1"] span:nth-child(1) { background: var(--accent-red); }
+  .strength-bars[data-score="2"] span:nth-child(-n+2) { background: #B78103; }
+  .strength-bars[data-score="3"] span:nth-child(-n+3) { background: #2E7D32; }
+  .strength-bars[data-score="4"] span { background: #2E7D32; }
+  .strength-label { margin-top: 0.25rem; color: var(--text-muted); font-size: 0.72rem; }
+  .strength-label[data-score="1"] { color: var(--accent-red); }
+  .strength-label[data-score="2"] { color: #B78103; }
+  .strength-label[data-score="3"], .strength-label[data-score="4"] { color: #2E7D32; }
+  @media (max-width: 991.98px) {
+    .profile-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "account" "signature" "security"; }
+  }
+  @media (max-width: 575.98px) {
+    .signature-surface { min-height: 180px; }
+    .signature-surface img { max-height: 190px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .upload-zone, .strength-bars span { transition: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container profile-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <h1 class="h5 fw-bold mb-1" style="color: var(--primary-blue);">Profil Pengguna</h1>
+      <p class="text-muted small mb-0">Kelola tanda tangan dan keamanan akun.</p>
+    </div>
+    <a href="{% url 'documents:dashboard' %}" class="btn btn-outline-secondary btn-sm">Kembali ke dashboard</a>
+  </div>
+
+  <div class="profile-grid">
+    <section class="card card-custom profile-account p-3" aria-labelledby="account-title">
+      <div class="d-flex justify-content-between align-items-start gap-2 border-bottom pb-2 mb-2">
+        <div class="min-w-0">
+          <h2 id="account-title" class="h6 fw-bold mb-1">{{ user.nama_pengguna }}</h2>
+          <div class="small text-muted text-truncate">{{ user.email|default:"Email belum diisi" }}</div>
+        </div>
+        <span class="badge text-bg-light border flex-shrink-0">{{ user.userid }}</span>
+      </div>
+      <dl class="profile-kv">
+        <div><dt>Level</dt><dd>{{ user.get_userlevel_display }}</dd></div>
+        <div><dt>Divisi</dt><dd>{{ user.get_divisi_display|default:"-" }}</dd></div>
+        <div><dt>Status akun</dt><dd>{% if user.is_active %}Aktif{% else %}Nonaktif{% endif %}</dd></div>
+      </dl>
+    </section>
+
+    <section class="card card-custom profile-security p-3" aria-labelledby="security-title">
+      <h2 id="security-title" class="h6 fw-bold mb-1">Ubah password</h2>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% for error in password_form.non_field_errors %}
+          <div class="alert alert-danger py-2 small mb-2">{{ error }}</div>
+        {% endfor %}
+
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1" for="{{ password_form.old_password.id_for_label }}">Password saat ini</label>
+          <div class="input-group input-group-sm">
+            {{ password_form.old_password }}
+            <button type="button" class="btn password-toggle" data-password-toggle data-target="{{ password_form.old_password.id_for_label }}" aria-pressed="false" aria-label="Tampilkan password saat ini">
+              <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.2A10.7 10.7 0 0 1 12 6c6 0 9.5 6 9.5 6a15 15 0 0 1-2.2 2.8M6.7 7.1C4 9 2.5 12 2.5 12s3.5 6 9.5 6a10.8 10.8 0 0 0 3.1-.45"/></svg>
+            </button>
+          </div>
+          {% for error in password_form.old_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1" for="id_new_password1">Password baru</label>
+          <div class="input-group input-group-sm">
+            {{ password_form.new_password1 }}
+            <button type="button" class="btn password-toggle" data-password-toggle data-target="id_new_password1" aria-pressed="false" aria-label="Tampilkan password baru">
+              <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.2A10.7 10.7 0 0 1 12 6c6 0 9.5 6 9.5 6a15 15 0 0 1-2.2 2.8M6.7 7.1C4 9 2.5 12 2.5 12s3.5 6 9.5 6a10.8 10.8 0 0 0 3.1-.45"/></svg>
+            </button>
+          </div>
+          <div class="strength-bars" data-password-strength data-score="0" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="strength-label" data-strength-label data-score="0" aria-live="polite">Minimal 8 karakter.</div>
+          {% for error in password_form.new_password1.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1" for="id_new_password2">Konfirmasi password baru</label>
+          <div class="input-group input-group-sm">
+            {{ password_form.new_password2 }}
+            <button type="button" class="btn password-toggle" data-password-toggle data-target="id_new_password2" aria-pressed="false" aria-label="Tampilkan konfirmasi password">
+              <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.2A10.7 10.7 0 0 1 12 6c6 0 9.5 6 9.5 6a15 15 0 0 1-2.2 2.8M6.7 7.1C4 9 2.5 12 2.5 12s3.5 6 9.5 6a10.8 10.8 0 0 0 3.1-.45"/></svg>
+            </button>
+          </div>
+          {% for error in password_form.new_password2.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary-appdoc btn-sm px-3">Perbarui password</button>
+      </form>
+    </section>
+
+    <section class="card card-custom profile-signature p-3" aria-labelledby="signature-title">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 border-bottom pb-2 mb-3">
+        <div>
+          <h2 id="signature-title" class="h6 fw-bold mb-1">Tanda tangan</h2>
+          <p class="text-muted small mb-0">Periksa hasil ekstraksi sebelum dipakai pada dokumen.</p>
+        </div>
+        {% if user.ttd_digital %}
+          <div class="btn-group btn-group-sm signature-toggle" role="group" aria-label="Latar pratinjau tanda tangan">
+            <button type="button" class="btn btn-outline-secondary active" data-signature-bg="checker" aria-pressed="true">Transparan</button>
+            <button type="button" class="btn btn-outline-secondary" data-signature-bg="white" aria-pressed="false">Putih</button>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="signature-surface" data-signature-surface>
+        {% if user.ttd_digital %}
+          <img src="{% url 'accounts:my_signature' %}" alt="Tanda tangan {{ user.nama_pengguna }}">
+        {% else %}
+          <div class="signature-empty small">
+            Belum ada tanda tangan. Unggah foto tanda tangan terlebih dahulu agar dapat melakukan approve.
+          </div>
+        {% endif %}
+      </div>
+      <div class="small text-muted text-truncate mt-2" title="{{ user.ttd_digital.name|default:'Belum ada file' }}">
+        {% if user.ttd_digital %}PNG RGBA &middot; {{ user.ttd_digital.name }}{% else %}Belum ada file tersimpan.{% endif %}
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="mt-3" novalidate>
+        {% csrf_token %}
+        <label class="upload-zone" for="{{ upload_form.ttd_digital.id_for_label }}" data-dropzone tabindex="0">
+          {{ upload_form.ttd_digital }}
+          <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>
+          <span class="min-w-0 flex-grow-1">
+            <span class="d-block small fw-semibold">Tarik gambar ke sini atau klik untuk pilih</span>
+            <span class="d-block text-muted" style="font-size: 0.72rem;">PNG/JPG, maks. 2MB. Latar kertas otomatis dibuat transparan.</span>
+          </span>
+        </label>
+        {% for error in upload_form.ttd_digital.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+          <span class="small text-muted" data-upload-status role="status" aria-live="polite">Belum ada file dipilih.</span>
+          <button type="submit" name="signature_submit" value="1" class="btn btn-primary-appdoc btn-sm px-3" data-upload-submit>
+            <span class="spinner-border spinner-border-sm me-1 d-none" data-upload-spinner aria-hidden="true"></span>
+            <span data-upload-submit-label>{% if user.ttd_digital %}Perbarui tanda tangan{% else %}Simpan tanda tangan{% endif %}</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const page = document.querySelector('.profile-page');
+    if (!page) return;
+
+    const surface = page.querySelector('[data-signature-surface]');
+    const backgroundButtons = page.querySelectorAll('[data-signature-bg]');
+    backgroundButtons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        backgroundButtons.forEach(function (item) {
+          const active = item === button;
+          item.classList.toggle('active', active);
+          item.setAttribute('aria-pressed', String(active));
+        });
+        surface.classList.toggle('is-white', button.dataset.signatureBg === 'white');
+      });
+    });
+
+    const dropzone = page.querySelector('[data-dropzone]');
+    const fileInput = dropzone ? dropzone.querySelector('input[type="file"]') : null;
+    const uploadStatus = page.querySelector('[data-upload-status]');
+    const uploadSubmit = page.querySelector('[data-upload-submit]');
+    const uploadSpinner = page.querySelector('[data-upload-spinner]');
+    const uploadSubmitLabel = page.querySelector('[data-upload-submit-label]');
+    const maxFileSize = 2 * 1024 * 1024;
+
+    function setUploadStatus(text, invalid) {
+      if (!uploadStatus) return;
+      uploadStatus.textContent = text;
+      uploadStatus.classList.toggle('text-danger', Boolean(invalid));
+      uploadStatus.classList.toggle('text-muted', !invalid);
+    }
+
+    function validateFile(file) {
+      if (!file.type.startsWith('image/')) return 'File harus berupa gambar PNG atau JPG.';
+      if (file.size > maxFileSize) return 'Ukuran file melebihi 2MB.';
+      return '';
+    }
+
+    if (dropzone && fileInput) {
+      fileInput.addEventListener('change', function () {
+        const file = fileInput.files[0];
+        if (!file) {
+          setUploadStatus('Belum ada file dipilih.', false);
+          dropzone.classList.remove('is-invalid');
+          return;
+        }
+        const error = validateFile(file);
+        if (error) {
+          fileInput.value = '';
+          dropzone.classList.add('is-invalid');
+          setUploadStatus(error, true);
+          return;
+        }
+        dropzone.classList.remove('is-invalid');
+        setUploadStatus(file.name + ' - ' + (file.size / 1024).toFixed(0) + ' KB', false);
+      });
+
+      ['dragenter', 'dragover'].forEach(function (type) {
+        dropzone.addEventListener(type, function (event) {
+          event.preventDefault();
+          dropzone.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (type) {
+        dropzone.addEventListener(type, function (event) {
+          event.preventDefault();
+          dropzone.classList.remove('is-dragover');
+        });
+      });
+      dropzone.addEventListener('drop', function (event) {
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        try {
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          fileInput.files = transfer.files;
+          fileInput.dispatchEvent(new Event('change'));
+        } catch (error) {
+          setUploadStatus('Gunakan tombol pilih file.', true);
+        }
+      });
+      dropzone.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          fileInput.click();
+        }
+      });
+    }
+
+    if (uploadSubmit) {
+      uploadSubmit.closest('form').addEventListener('submit', function (event) {
+        if (!fileInput || !fileInput.files.length) {
+          event.preventDefault();
+          dropzone.classList.add('is-invalid');
+          setUploadStatus('Pilih file tanda tangan terlebih dahulu.', true);
+          return;
+        }
+        uploadSubmit.disabled = true;
+        uploadSpinner.classList.remove('d-none');
+        uploadSubmitLabel.textContent = 'Memproses...';
+        setUploadStatus('Mengunggah dan menghapus latar kertas...', false);
+      });
+    }
+
+    page.querySelectorAll('[data-password-toggle]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const input = document.getElementById(button.dataset.target);
+        if (!input) return;
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        button.setAttribute('aria-pressed', String(show));
+        button.setAttribute('aria-label', show ? 'Sembunyikan password' : 'Tampilkan password');
+      });
+    });
+
+    const newPassword = document.getElementById('id_new_password1');
+    const strengthBars = page.querySelector('[data-password-strength]');
+    const strengthLabel = page.querySelector('[data-strength-label]');
+    if (newPassword && strengthBars && strengthLabel) {
+      newPassword.addEventListener('input', function () {
+        const value = newPassword.value;
+        let score = 0;
+        if (value.length >= 8) score += 1;
+        if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+        if (/\d/.test(value)) score += 1;
+        if (/[^A-Za-z0-9]/.test(value)) score += 1;
+        const labels = ['Minimal 8 karakter.', 'Lemah', 'Sedang', 'Kuat', 'Sangat kuat'];
+        strengthBars.dataset.score = String(score);
+        strengthLabel.dataset.score = String(score);
+        strengthLabel.textContent = labels[score];
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,10 +1,28 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm, UserChangeForm, AuthenticationForm
-from django.contrib.auth import authenticate
-from .models import CustomUser
+from django.contrib.auth.forms import (
+    AuthenticationForm,
+    PasswordChangeForm,
+    UserChangeForm,
+    UserCreationForm,
+)
+from .models import CustomUser, validate_ttd_size
+from .utils import make_signature_transparent
 
 
-class CustomUserCreationForm(UserCreationForm):
+class SignatureCleanMixin:
+    def clean_ttd_digital(self):
+        image = self.cleaned_data.get('ttd_digital')
+        if (
+            image
+            and not getattr(image, '_signature_processed', False)
+            and not getattr(image, '_committed', True)
+        ):
+            image = make_signature_transparent(image)
+            image._signature_processed = True
+        return image
+
+
+class CustomUserCreationForm(SignatureCleanMixin, UserCreationForm):
     class Meta:
         model = CustomUser
         fields = ('userid', 'nama_pengguna', 'email', 'userlevel', 'ttd_digital')
@@ -26,7 +44,7 @@ class CustomUserCreationForm(UserCreationForm):
         return user
 
 
-class CustomUserChangeForm(UserChangeForm):
+class CustomUserChangeForm(SignatureCleanMixin, UserChangeForm):
     password = None
 
     class Meta:
@@ -38,7 +56,7 @@ class CustomUserChangeForm(UserChangeForm):
         return userid.strip().upper() if userid else ''
 
 
-class UserRegisterForm(forms.ModelForm):
+class UserRegisterForm(SignatureCleanMixin, forms.ModelForm):
     email = forms.EmailField(
         required=True,
         label='Alamat Email',
@@ -54,7 +72,8 @@ class UserRegisterForm(forms.ModelForm):
         required=True,
         label='Tanda Tangan Digital',
         widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'}),
-        help_text='Wajib mengunggah file tanda tangan format PNG/JPG (Maks 2MB).'
+        validators=[validate_ttd_size],
+        help_text='Latar kertas otomatis dibuat transparan (PNG/JPG, maks 2MB).'
     )
     password = forms.CharField(
         label='Password',
@@ -108,11 +127,12 @@ class UserRegisterForm(forms.ModelForm):
             user.save()
         return user
 
-class UploadSignatureForm(forms.ModelForm):
+class UploadSignatureForm(SignatureCleanMixin, forms.ModelForm):
     ttd_digital = forms.ImageField(
         required=True,
         label='Tanda Tangan Digital Baru',
-        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'})
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/png, image/jpeg'}),
+        validators=[validate_ttd_size],
     )
 
     class Meta:
@@ -132,3 +152,10 @@ class LoginForm(AuthenticationForm):
 
     def clean_username(self):
         return self.cleaned_data.get('username', '').strip().upper()
+
+
+class StyledPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault('class', 'form-control')

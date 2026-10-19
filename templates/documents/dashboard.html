@@ -72,6 +72,19 @@
     border-color: var(--primary-blue);
     color: #ffffff;
   }
+
+  .summary-card {
+    border-left-width: 3px;
+    box-shadow: none;
+    transition: background-color 0.15s ease;
+  }
+  .summary-card:hover { background-color: var(--bg-body); }
+  .summary-card:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+  .summary-card.summary-total { border-left-color: var(--primary-blue); }
+  .summary-card.summary-approved { border-left-color: #2E7D32; }
+  .summary-card.summary-rejected { border-left-color: var(--accent-red); }
+  .summary-label { color: var(--text-muted); font-size: 0.75rem; }
+  .summary-value { color: var(--text-dark); font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 </style>
 {% endblock %}
 
@@ -88,6 +101,33 @@
       </button>
     {% endif %}
   </div>
+
+  {% if show_summary %}
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+      <span class="small fw-semibold text-dark">Ringkasan dokumen</span>
+      <span class="small text-muted">{{ summary_scope_label }}</span>
+    </div>
+    <div class="row g-2 mb-3" aria-label="Ringkasan dokumen">
+      <div class="col-12 col-sm-4">
+        <a href="?status=all" class="card card-custom summary-card summary-total h-100 p-3 text-decoration-none">
+          <span class="summary-label">Total dokumen</span>
+          <span class="summary-value">{{ summary.total }}</span>
+        </a>
+      </div>
+      <div class="col-12 col-sm-4">
+        <a href="?status=approved" class="card card-custom summary-card summary-approved h-100 p-3 text-decoration-none">
+          <span class="summary-label">Disetujui</span>
+          <span class="summary-value">{{ summary.approved }}</span>
+        </a>
+      </div>
+      <div class="col-12 col-sm-4">
+        <a href="?status=rejected" class="card card-custom summary-card summary-rejected h-100 p-3 text-decoration-none">
+          <span class="summary-label">Ditolak</span>
+          <span class="summary-value">{{ summary.rejected }}</span>
+        </a>
+      </div>
+    </div>
+  {% endif %}
 
   <!-- Antrean Butuh Approval -->
   {% if active_queue is not None %}

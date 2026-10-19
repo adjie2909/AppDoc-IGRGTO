@@ -45,6 +45,7 @@
           <span class="text-white me-3 small">
             <strong>{{ user.nama_pengguna }}</strong> ({{ user.userid }} - {{ user.get_userlevel_display }})
           </span>
+          <a href="{% url 'accounts:profile' %}" class="btn btn-sm btn-light text-primary fw-bold me-2">Profil</a>
           <a href="{% url 'accounts:logout' %}" class="btn btn-sm btn-danger-appdoc">Keluar</a>
         {% else %}
           <a href="{% url 'accounts:login' %}" class="btn btn-sm text-white me-2">Masuk</a>
@@ -55,14 +56,14 @@
   </nav>
 
   <!-- Container Toast Melayang -->
-  <div class="position-fixed top-0 end-0 p-3" style="z-index: 1090; pointer-events: none; max-width: 380px; width: 100%;">
+  <div class="position-fixed top-0 end-0 p-2" style="z-index: 1090; pointer-events: none; max-width: 340px; width: 100%;">
     {% if messages %}
       {% for message in messages %}
-        <div class="toast-slide-box p-3" style="pointer-events: auto;">
+        <div class="toast-slide-box px-3 py-2" style="pointer-events: auto;" role="status" aria-live="polite">
           <div class="d-flex align-items-center">
             <div 
-              class="me-3 rounded-pill flex-shrink-0 {% if message.tags == 'error' %}bg-danger{% elif message.tags == 'success' %}bg-primary{% else %}bg-info{% endif %}" 
-              style="width: 4px; height: 28px;">
+              class="me-2 rounded-pill flex-shrink-0 {% if message.tags == 'error' %}toast-accent-error{% elif message.tags == 'success' %}toast-accent-success{% else %}toast-accent-info{% endif %}" 
+              style="width: 3px; height: 22px;">
             </div>
             
             <div class="small fw-semibold text-dark flex-grow-1">
@@ -84,7 +85,7 @@
   <footer class="footer-appdoc py-3 mt-auto">
     <div class="container-fluid px-4 d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
       <div>
-        <span class="fw-semibold text-dark">AppDoc IGRGTO</span> &copy; ADJIE TRESNOHADI. All rights reserved.
+        <span class="fw-semibold text-dark">AppDoc IGRGTO</span> &copy; DJI. All rights reserved.
       </div>
       <div>
         Sistem Manajemen Persetujuan Dokumen & Berita Acara Digital

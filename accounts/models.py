@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from .utils import make_signature_transparent
 
 
 def validate_ttd_size(image):
@@ -133,6 +134,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def save(self, *args, **kwargs):
         if self.userid:
             self.userid = self.userid.strip().upper()
+        signature = self.ttd_digital
+        if signature and not getattr(signature, '_committed', True):
+            source = getattr(signature, 'file', signature)
+            if not getattr(source, '_signature_processed', False):
+                cleaned = make_signature_transparent(source)
+                cleaned._signature_processed = True
+                self.ttd_digital = cleaned
         super().save(*args, **kwargs)
 
     def __str__(self):
