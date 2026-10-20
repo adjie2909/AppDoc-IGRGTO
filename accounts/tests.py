@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image, ImageDraw
 
 from .models import CustomUser
@@ -34,6 +35,98 @@ class SignatureProcessingTests(TestCase):
 
         with self.assertRaises(ValidationError):
             make_signature_transparent(SimpleUploadedFile('blank.png', buffer.getvalue()))
+
+
+@override_settings(STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+})
+class RegistrationMessageTests(TestCase):
+    def test_new_staff_user_is_told_to_contact_admin_for_level_upgrade(self):
+        response = self.client.post(
+            reverse('accounts:register'),
+            {
+                'userid': 'N01',
+                'nama_pengguna': 'New User',
+                'email': 'new@example.com',
+                'divisi': 'food',
+                'password': 'NewPass123!',
+                'password_confirm': 'NewPass123!',
+                'ttd_digital': make_signature_upload(),
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Userlevel saat ini masih Staff')
+        self.assertContains(response, 'Hubungi EDP jika userlevel perlu diubah')
+        self.assertContains(response, 'id="systemMessageModal"')
+        self.assertContains(response, 'alert-warning')
+        self.assertNotContains(response, 'toast-slide-box')
+        self.assertEqual(CustomUser.objects.get(userid='N01').userlevel, 'staff')
+
+    def test_non_registration_message_still_uses_toast(self):
+        response = self.client.post(
+            reverse('accounts:login'),
+            {'username': 'unknown', 'password': 'wrong'},
+        )
+
+        self.assertContains(response, 'UserID atau Password salah.')
+        self.assertContains(response, 'toast-slide-box')
+        self.assertNotContains(response, 'id="systemMessageModal"')
+
+
+@override_settings(
+    SESSION_IDLE_TIMEOUT=30 * 60,
+    STORAGES={
+        'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    },
+)
+class SessionIdleTimeoutTests(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            'T02',
+            'Idle User',
+            email='idle@example.com',
+            password='TestPass123!',
+            ttd_digital='signatures/dummy.png',
+        )
+        self.client.force_login(self.user)
+
+    def test_idle_session_returns_user_to_login_with_popup(self):
+        session = self.client.session
+        session['last_activity'] = timezone.now().timestamp() - (30 * 60 + 1)
+        session.save()
+
+        response = self.client.get(reverse('documents:dashboard'), follow=True)
+
+        self.assertEqual(response.redirect_chain[0][0], reverse('accounts:login'))
+        self.assertContains(response, 'Silakan login kembali.')
+        self.assertContains(response, 'id="systemMessageModal"')
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_active_session_refreshes_activity_timestamp(self):
+        last_activity = timezone.now().timestamp() - 60
+        session = self.client.session
+        session['last_activity'] = last_activity
+        session.save()
+
+        response = self.client.get(reverse('documents:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(self.client.session['last_activity'], last_activity)
+        self.assertNotContains(response, 'systemMessageModal')
+
+    def test_login_starts_activity_timer(self):
+        self.client.logout()
+
+        response = self.client.post(
+            reverse('accounts:login'),
+            {'username': 'T02', 'password': 'TestPass123!'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('last_activity', self.client.session)
 
 
 @override_settings(STORAGES={

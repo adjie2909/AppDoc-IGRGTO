@@ -1,5 +1,36 @@
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import logout
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
+
+
+class SessionIdleTimeoutMiddleware:
+    '''Logout pengguna yang tidak aktif lebih dari batas waktu sesi.'''
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            now = timezone.now().timestamp()
+            last_activity = request.session.get('last_activity')
+            timeout = getattr(settings, 'SESSION_IDLE_TIMEOUT', 30 * 60)
+
+            if last_activity and now - last_activity > timeout:
+                logout(request)
+                messages.warning(
+                    request,
+                    'Silakan login kembali.',
+                    extra_tags='popup',
+                )
+                return redirect('accounts:login')
+
+            request.session['last_activity'] = now
+
+        return self.get_response(request)
+
 
 class RequireSignatureMiddleware:
     """

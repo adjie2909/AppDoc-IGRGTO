@@ -3,6 +3,7 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from .forms import LoginForm, StyledPasswordChangeForm, UploadSignatureForm, UserRegisterForm
 
@@ -16,7 +17,20 @@ def register_view(request):
         form = UserRegisterForm(request.POST, request.FILES)
         if form.is_valid():
             user = form.save()
-            messages.success(request, f'Akun {user.userid} berhasil dibuat! Silakan masuk.')
+            if user.userlevel == 'staff':
+                messages.warning(
+                    request,
+                    f'Akun {user.userid} berhasil dibuat. Userlevel saat ini masih {user.get_userlevel_display()}. '
+                    'Hubungi EDP jika userlevel perlu diubah.',
+                    extra_tags='account_created',
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Akun {user.userid} berhasil dibuat dengan level '
+                    f'{user.get_userlevel_display()}. Hubungi EDP jika userlevel perlu diubah.',
+                    extra_tags='account_created',
+                )
             return redirect('accounts:login')
         else:
             messages.error(request, 'Pendaftaran gagal. Periksa kembali isian formulir Anda.')
@@ -36,6 +50,7 @@ def login_view(request):
         if form.is_valid():
             user = form.get_user()
             login(request, user)
+            request.session['last_activity'] = timezone.now().timestamp()
             messages.success(request, f'Selamat datang kembali, {user.nama_pengguna}!')
             next_url = request.GET.get('next')
             if next_url:

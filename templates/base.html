@@ -1,4 +1,4 @@
-{% load static %}
+{% load static message_tags %}
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -55,27 +55,46 @@
     </div>
   </nav>
 
-  <!-- Container Toast Melayang -->
-  <div class="position-fixed top-0 end-0 p-2" style="z-index: 1090; pointer-events: none; max-width: 340px; width: 100%;">
-    {% if messages %}
-      {% for message in messages %}
+  {% split_messages messages as message_groups %}
+
+  <!-- Popup notifikasi akun baru -->
+  {% if message_groups.popup %}
+    <div class="modal fade" id="systemMessageModal" tabindex="-1" aria-labelledby="systemMessageModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-custom">
+          <div class="modal-header py-2">
+            <h2 class="modal-title fs-6 fw-bold" id="systemMessageModalLabel">Pemberitahuan</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body py-3">
+            {% for message in message_groups.popup %}
+              <div class="alert {% if message.level_tag == 'error' %}alert-danger{% elif message.level_tag == 'success' %}alert-success{% elif message.level_tag == 'warning' %}alert-warning{% else %}alert-info{% endif %} small mb-2" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="modal-footer py-2">
+            <button type="button" class="btn btn-primary-appdoc btn-sm px-3" data-bs-dismiss="modal">Mengerti</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Toast pesan sistem -->
+  {% if message_groups.toast %}
+    <div class="position-fixed top-0 end-0 p-2" style="z-index: 1090; pointer-events: none; max-width: 340px; width: 100%;">
+      {% for message in message_groups.toast %}
         <div class="toast-slide-box px-3 py-2" style="pointer-events: auto;" role="status" aria-live="polite">
           <div class="d-flex align-items-center">
-            <div 
-              class="me-2 rounded-pill flex-shrink-0 {% if message.tags == 'error' %}toast-accent-error{% elif message.tags == 'success' %}toast-accent-success{% else %}toast-accent-info{% endif %}" 
-              style="width: 3px; height: 22px;">
-            </div>
-            
-            <div class="small fw-semibold text-dark flex-grow-1">
-              {{ message }}
-            </div>
-            
+            <div class="me-2 rounded-pill flex-shrink-0 {% if message.level_tag == 'error' %}toast-accent-error{% elif message.level_tag == 'success' %}toast-accent-success{% else %}toast-accent-info{% endif %}" style="width: 3px; height: 22px;"></div>
+            <div class="small fw-semibold text-dark flex-grow-1">{{ message }}</div>
             <button type="button" class="btn-close ms-2 btn-close-toast" aria-label="Close" style="font-size: 0.75rem;"></button>
           </div>
         </div>
       {% endfor %}
-    {% endif %}
-  </div>
+    </div>
+  {% endif %}
 
   <main class="py-4">
     {% block content %}{% endblock %}
@@ -96,37 +115,41 @@
   <!-- Bootstrap 5 Bundle JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const toastBoxes = document.querySelectorAll('.toast-slide-box');
+  {% if message_groups.popup or message_groups.toast %}
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        {% if message_groups.toast %}
+        document.querySelectorAll('.toast-slide-box').forEach(function (box, index) {
+          setTimeout(function () {
+            box.classList.add('toast-active');
+          }, 60 + (index * 120));
 
-      toastBoxes.forEach(function (box, index) {
-        setTimeout(() => {
-          box.classList.add('toast-active');
-        }, 60 + (index * 120));
+          function closeToast() {
+            box.classList.remove('toast-active');
+            box.classList.add('toast-leaving');
+            setTimeout(function () {
+              box.remove();
+            }, 500);
+          }
 
-        function closeToast() {
-          box.classList.remove('toast-active');
-          box.classList.add('toast-leaving');
-          setTimeout(() => {
-            box.remove();
-          }, 500);
-        }
+          const autoTimer = setTimeout(closeToast, 4000);
+          const btnClose = box.querySelector('.btn-close-toast');
+          if (btnClose) {
+            btnClose.addEventListener('click', function () {
+              clearTimeout(autoTimer);
+              closeToast();
+            });
+          }
+        });
+        {% endif %}
 
-        const autoTimer = setTimeout(() => {
-          closeToast();
-        }, 4000);
-
-        const btnClose = box.querySelector('.btn-close-toast');
-        if (btnClose) {
-          btnClose.addEventListener('click', () => {
-            clearTimeout(autoTimer);
-            closeToast();
-          });
+        const popup = document.getElementById('systemMessageModal');
+        if (popup && window.bootstrap) {
+          bootstrap.Modal.getOrCreateInstance(popup).show();
         }
       });
-    });
-  </script>
+    </script>
+  {% endif %}
   
   {% block extra_js %}{% endblock %}
 </body>
