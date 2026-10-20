@@ -68,7 +68,8 @@
           <div class="mb-4">
             <label class="form-label fw-semibold">Upload Tanda Tangan Digital <span class="text-danger">*</span></label>
             {{ form.ttd_digital }}
-            <div class="form-text small">Latar kertas otomatis dihapus (PNG/JPG, maks. 2MB). Digunakan untuk stempel approval.</div>
+            <div class="form-text small">(PNG/JPG, maks. 2MB). Digunakan untuk stempel approval.</div>
+            <div class="form-text small">Wajib gambar ukuran 1:1.</div>
             {% if form.ttd_digital.errors %}
               <div class="text-danger small mt-1">{{ form.ttd_digital.errors.0 }}</div>
             {% endif %}
