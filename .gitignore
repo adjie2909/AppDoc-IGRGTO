@@ -1,6 +1,7 @@
 # Database
 *.sqlite3
 db.sqlite3
+server.py
 
 # Konfigurasi Lokal
 config/settings.py
