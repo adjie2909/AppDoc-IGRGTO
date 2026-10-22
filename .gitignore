@@ -2,14 +2,13 @@
 *.sqlite3
 db.sqlite3
 server.py
-
 # Konfigurasi Lokal
 config/settings.py
-
 # Python Cache
 __pycache__/
 *.py[cod]
-
+#other
 docs/
 signatures/
 2026/
+.codebase-memory/
