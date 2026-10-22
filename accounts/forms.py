@@ -6,7 +6,7 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 from .models import CustomUser, validate_ttd_size
-from .utils import make_signature_transparent
+from .utils import make_signature_transparent, validate_signature_square
 
 
 class SignatureCleanMixin:
@@ -97,6 +97,12 @@ class UserRegisterForm(SignatureCleanMixin, forms.ModelForm):
         if CustomUser.objects.filter(userid=userid).exists():
             raise forms.ValidationError('UserID ini sudah terdaftar.')
         return userid
+
+    def clean_ttd_digital(self):
+        image = super().clean_ttd_digital()
+        if image:
+            validate_signature_square(image)
+        return image
 
     def clean_email(self):
         email = self.cleaned_data.get('email', '').strip().lower()

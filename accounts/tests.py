@@ -11,9 +11,10 @@ from .models import CustomUser
 from .utils import make_signature_transparent
 
 
-def make_signature_upload():
-    image = Image.new('RGB', (240, 120), 'white')
-    ImageDraw.Draw(image).line((40, 60, 200, 60), fill='black', width=8)
+def make_signature_upload(size=(200, 200)):
+    image = Image.new('RGB', size, 'white')
+    middle = size[1] // 2
+    ImageDraw.Draw(image).line((size[0] // 5, middle, size[0] * 4 // 5, middle), fill='black', width=8)
     buffer = BytesIO()
     image.save(buffer, format='JPEG')
     return SimpleUploadedFile('ttd.jpg', buffer.getvalue(), content_type='image/jpeg')
@@ -42,6 +43,28 @@ class SignatureProcessingTests(TestCase):
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
 })
 class RegistrationMessageTests(TestCase):
+    def test_non_square_signature_shows_popup_and_blocks_registration(self):
+        response = self.client.post(
+            reverse('accounts:register'),
+            {
+                'userid': 'N02',
+                'nama_pengguna': 'Wrong Size',
+                'email': 'wrongsize@example.com',
+                'divisi': 'food',
+                'password': 'NewPass123!',
+                'password_confirm': 'NewPass123!',
+                'ttd_digital': make_signature_upload((240, 120)),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'Format ukuran anda salah, silahkan upload kembali tanda tangan digital dengan format gambar 1:1',
+        )
+        self.assertContains(response, 'systemMessageModal')
+        self.assertFalse(CustomUser.objects.filter(userid='N02').exists())
+
     def test_new_staff_user_is_told_to_contact_admin_for_level_upgrade(self):
         response = self.client.post(
             reverse('accounts:register'),
@@ -153,6 +176,20 @@ class ProfileAndUploadTests(TestCase):
         with self.user.ttd_digital.open('rb') as saved:
             image = Image.open(saved)
             self.assertEqual(image.mode, 'RGBA')
+
+    def test_profile_signature_upload_does_not_require_password_change(self):
+        self.user.ttd_digital = make_signature_upload()
+        self.user.save()
+        old_signature = self.user.ttd_digital.name
+
+        response = self.client.post(
+            reverse('accounts:profile'), {'ttd_digital': make_signature_upload()}
+        )
+
+        self.assertRedirects(response, reverse('accounts:profile'))
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.ttd_digital.name, old_signature)
+        self.assertTrue(self.user.check_password('OldPass123!'))
 
     def test_model_save_processes_direct_upload(self):
         self.user.ttd_digital = make_signature_upload()

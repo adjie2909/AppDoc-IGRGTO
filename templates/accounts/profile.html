@@ -206,7 +206,7 @@
         {% endif %}
       </div>
       <div class="small text-muted text-truncate mt-2" title="{{ user.ttd_digital.name|default:'Belum ada file' }}">
-        {% if user.ttd_digital %}PNG RGBA &middot; {{ user.ttd_digital.name }}{% else %}Belum ada file tersimpan.{% endif %}
+        {% if user.ttd_digital %}Tanda Tangan Sudah Ada{% else %}Tanda Tangan Belum Ada.{% endif %}
       </div>
 
       <form method="post" enctype="multipart/form-data" class="mt-3" novalidate>
@@ -216,7 +216,7 @@
           <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>
           <span class="min-w-0 flex-grow-1">
             <span class="d-block small fw-semibold">Tarik gambar ke sini atau klik untuk pilih</span>
-            <span class="d-block text-muted" style="font-size: 0.72rem;">PNG/JPG, maks. 2MB. Latar kertas otomatis dibuat transparan.</span>
+            <span class="d-block text-muted" style="font-size: 0.72rem;">PNG/JPG, maks. 2MB</span>
           </span>
         </label>
         {% for error in upload_form.ttd_digital.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}

@@ -6,6 +6,28 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageChops, ImageFilter, ImageOps, UnidentifiedImageError
 
 
+SIGNATURE_NOT_SQUARE_CODE = 'signature_not_square'
+SIGNATURE_NOT_SQUARE_MESSAGE = (
+    'Format ukuran anda salah, silahkan upload kembali tanda tangan digital '
+    'dengan format gambar 1:1'
+)
+
+
+def validate_signature_square(uploaded_file):
+    # Tolak gambar tanda tangan yang lebar dan tingginya tidak sama.
+    try:
+        uploaded_file.seek(0)
+        with Image.open(uploaded_file) as image:
+            width, height = image.size
+    except (UnidentifiedImageError, OSError):
+        return
+    finally:
+        uploaded_file.seek(0)
+
+    if width != height:
+        raise ValidationError(SIGNATURE_NOT_SQUARE_MESSAGE, code=SIGNATURE_NOT_SQUARE_CODE)
+
+
 def make_signature_transparent(uploaded_file):
     """Buat latar kertas putih/abu-abu transparan dan simpan guratan sebagai PNG RGBA."""
     try:

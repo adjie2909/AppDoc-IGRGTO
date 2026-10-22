@@ -9,3 +9,7 @@ config/settings.py
 # Python Cache
 __pycache__/
 *.py[cod]
+
+docs/
+signatures/
+2026/
