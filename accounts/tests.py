@@ -237,3 +237,19 @@ class ProfileAndUploadTests(TestCase):
         self.assertTrue(self.user.ttd_digital.name.endswith('.png'))
         with self.user.ttd_digital.open('rb') as saved:
             self.assertEqual(Image.open(saved).mode, 'RGBA')
+
+    def test_profile_rejects_non_square_signature_with_popup(self):
+        self.user.ttd_digital = make_signature_upload()
+        self.user.save()
+        old_signature = self.user.ttd_digital.name
+
+        response = self.client.post(
+            reverse('accounts:profile'),
+            {'ttd_digital': make_signature_upload((240, 120)), 'signature_submit': '1'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'format ukuran gambar salah, wajib dengan format 1:1')
+        self.assertContains(response, 'systemMessageModal')
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.ttd_digital.name, old_signature)

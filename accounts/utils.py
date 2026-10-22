@@ -11,9 +11,10 @@ SIGNATURE_NOT_SQUARE_MESSAGE = (
     'Format ukuran anda salah, silahkan upload kembali tanda tangan digital '
     'dengan format gambar 1:1'
 )
+SIGNATURE_PROFILE_NOT_SQUARE_MESSAGE = 'format ukuran gambar salah, wajib dengan format 1:1'
 
 
-def validate_signature_square(uploaded_file):
+def validate_signature_square(uploaded_file, error_message=SIGNATURE_NOT_SQUARE_MESSAGE):
     # Tolak gambar tanda tangan yang lebar dan tingginya tidak sama.
     try:
         uploaded_file.seek(0)
@@ -25,7 +26,7 @@ def validate_signature_square(uploaded_file):
         uploaded_file.seek(0)
 
     if width != height:
-        raise ValidationError(SIGNATURE_NOT_SQUARE_MESSAGE, code=SIGNATURE_NOT_SQUARE_CODE)
+        raise ValidationError(error_message, code=SIGNATURE_NOT_SQUARE_CODE)
 
 
 def make_signature_transparent(uploaded_file):

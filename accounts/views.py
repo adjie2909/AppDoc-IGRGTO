@@ -6,7 +6,11 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from .forms import LoginForm, StyledPasswordChangeForm, UploadSignatureForm, UserRegisterForm
-from .utils import SIGNATURE_NOT_SQUARE_CODE, SIGNATURE_NOT_SQUARE_MESSAGE
+from .utils import (
+    SIGNATURE_NOT_SQUARE_CODE,
+    SIGNATURE_NOT_SQUARE_MESSAGE,
+    SIGNATURE_PROFILE_NOT_SQUARE_MESSAGE,
+)
 
 
 def register_view(request):
@@ -92,7 +96,11 @@ def profile_view(request):
                 upload_form.save()
                 messages.success(request, 'Tanda tangan telah berhasil diperbarui.')
                 return redirect('accounts:profile')
-            messages.error(request, 'Tanda tangan gagal diproses. Periksa format dan ukuran file.')
+            signature_errors = upload_form.errors.as_data().get('ttd_digital', [])
+            if any(error.code == SIGNATURE_NOT_SQUARE_CODE for error in signature_errors):
+                messages.error(request, SIGNATURE_PROFILE_NOT_SQUARE_MESSAGE, extra_tags='popup')
+            else:
+                messages.error(request, 'Tanda tangan gagal diproses. Periksa format dan ukuran file.')
         else:
             password_form = StyledPasswordChangeForm(request.user, request.POST)
             if password_form.is_valid():

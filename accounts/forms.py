@@ -6,7 +6,11 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 from .models import CustomUser, validate_ttd_size
-from .utils import make_signature_transparent, validate_signature_square
+from .utils import (
+    SIGNATURE_PROFILE_NOT_SQUARE_MESSAGE,
+    make_signature_transparent,
+    validate_signature_square,
+)
 
 
 class SignatureCleanMixin:
@@ -144,6 +148,12 @@ class UploadSignatureForm(SignatureCleanMixin, forms.ModelForm):
     class Meta:
         model = CustomUser
         fields = ('ttd_digital',)
+
+    def clean_ttd_digital(self):
+        image = self.cleaned_data.get('ttd_digital')
+        if image:
+            validate_signature_square(image, SIGNATURE_PROFILE_NOT_SQUARE_MESSAGE)
+        return super().clean_ttd_digital()
 
 # Form Login Kustom berbasis UserID
 class LoginForm(AuthenticationForm):
